@@ -6,8 +6,12 @@ export type Db = ReturnType<typeof createDb>;
 
 let singleton: Db | undefined;
 
-export function createDb(url = process.env.DATABASE_URL) {
-  if (!url) throw new Error("DATABASE_URL is not set");
+export function createDb(
+  // Vercel's Supabase marketplace integration injects POSTGRES_URL instead
+  // of DATABASE_URL — accept either.
+  url = process.env.DATABASE_URL ?? process.env.POSTGRES_URL,
+) {
+  if (!url) throw new Error("DATABASE_URL (or POSTGRES_URL) is not set");
   // Serverless-friendly: small pool, no prepared statements — required by
   // transaction-mode poolers (Supabase Supavisor :6543, pgbouncer).
   const sql = postgres(url, { max: 5, prepare: false });
