@@ -6,7 +6,7 @@ Send a photo or PDF of any recurring bill (energy, broadband, mobile — more ca
 2. the real numbers on a clean, mobile-first web summary (signed link, no login, light/dark),
 3. concrete, category-aware steps to lower the bill — every claimed saving verified in code against the extracted data.
 
-Phase 2 (designed, gated — see `packages/missions`): on the customer's written authorization, act on the bill through the **provider's own official WhatsApp support channel**, with an LLM driving the text negotiation, structural AI disclosure, OTP relay that never persists codes, and hard redaction of card numbers / national IDs.
+Phase 2 (designed, gated — see `packages/missions`): on the customer's written authorization, help them act on the bill via the **co-pilot relay**: the LLM drafts each negotiation message, the customer sends it from *their own* WhatsApp to the provider with a one-tap prefilled `wa.me` link, forwards the reply back, and the model computes the next move. This keeps the sender identity on the contract (provider bots key on the customer's number), needs no business-to-business WhatsApp messaging (unsupported by Meta's platform), and stays inside Meta's 2026 AI-chatbot policy. Card numbers / national IDs are redacted from every draft; steps that truly require them fall back to explicit "do this yourself" instructions.
 
 ## Architecture
 
@@ -27,7 +27,8 @@ packages/
                    code validators — the pack contract is `src/pack.ts`
    llm             claude-opus-4-8: vision extraction + decode/savings (structured outputs)
    pipeline        intake machine, guardrails (no-fabricated-numbers pass), WA rendering, tokens
-   missions        Phase 2: mission lifecycle, disclosure enforcement, OTP relay
+   missions        Phase 2: mission lifecycle, co-pilot relay (wa.me drafting, transcript
+                   fencing, draft guards), disclosure enforcement, OTP store
 ```
 
 **Pipeline:** pages → single-pass Opus vision extraction (merged schema of all packs, category auto-detected, every leaf nullable — the model must return null rather than guess) → decode + savings call (customer's language) → **guardrail pass** (pure code: every savings claim re-validated by its lever, every currency amount in prose must be derivable from extracted data; fabricated numbers are stripped and reported) → WhatsApp summary + buttons + signed link.

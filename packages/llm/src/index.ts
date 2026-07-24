@@ -9,3 +9,10 @@ export {
   type DecodeResult,
 } from "./decode.js";
 export { extractionSystemPrompt, EXTRACTION_PROMPT_VERSION } from "./prompts/extraction.js";
+export {
+  relayNextMove,
+  RelayMoveSchema,
+  NEGOTIATE_PROMPT_VERSION,
+  type RelayMove,
+  type RelayContext,
+} from "./negotiate.js";

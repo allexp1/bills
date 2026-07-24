@@ -8,6 +8,7 @@ import {
   t,
   transition,
   type IntakeEffect,
+  type IntakeEvent,
   type IntakeState,
 } from "@bills/pipeline";
 import { resolveLocale, waHash, type InboundEvent, type SupportedLocale } from "@bills/shared";
@@ -16,6 +17,7 @@ import { enqueue } from "./jobs.js";
 import { env } from "./env.js";
 import { loadGuardedDecode } from "./decode-store.js";
 import { mediaStore } from "./media-store.js";
+import { MAX_PAGES_PER_BILL, PAGE_LIMIT_COPY, QUOTA_COPY, billQuotaExceeded } from "./rate-limit.js";
 
 const SESSION_WINDOW_MS = 24 * 3600 * 1000;
 
@@ -54,12 +56,26 @@ export async function handleInbound(event: InboundEvent): Promise<void> {
   if (inserted.length === 0) return; // duplicate webhook delivery
 
   const state = (conversation.state as IntakeState | null) ?? INITIAL_STATE;
-  const machineEvent =
+
+  // Abuse limits before the machine runs: daily bill quota on new bills,
+  // page cap while collecting (a capped bill is promoted to processing).
+  let machineEvent: IntakeEvent =
     event.kind === "text"
-      ? ({ type: "text", text: event.text } as const)
+      ? { type: "text", text: event.text }
       : event.kind === "media"
-        ? ({ type: "media", mediaKind: event.mediaKind } as const)
-        : ({ type: "button", buttonId: event.buttonId } as const);
+        ? { type: "media", mediaKind: event.mediaKind }
+        : { type: "button", buttonId: event.buttonId };
+  if (event.kind === "media") {
+    if (state.phase !== "collecting") {
+      if (await billQuotaExceeded(customer.id)) {
+        await channel().sendText(event.from, QUOTA_COPY[locale] ?? QUOTA_COPY.en!);
+        return;
+      }
+    } else if (state.pageCount >= MAX_PAGES_PER_BILL) {
+      await channel().sendText(event.from, PAGE_LIMIT_COPY[locale] ?? PAGE_LIMIT_COPY.en!);
+      machineEvent = { type: "button", buttonId: `collect_done:${state.invoiceId}` };
+    }
+  }
 
   const { state: next, effects } = transition(state, machineEvent);
   const ctx: EffectContext = { customerId: customer.id, conversationId: conversation.id, locale, event, state: next };
