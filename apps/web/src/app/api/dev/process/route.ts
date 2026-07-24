@@ -19,6 +19,20 @@ export const maxDuration = 300;
  * Returns the signed summary URL — the same page a customer would receive.
  */
 export async function POST(req: NextRequest) {
+  try {
+    return await handle(req);
+  } catch (err) {
+    // Pre-pipeline failures (missing env, no DB, missing tables) surface as a
+    // diagnosable JSON error instead of an opaque 500.
+    const msg = (err instanceof Error ? `${err.name}: ${err.message}` : String(err))
+      .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "postgres://[redacted]")
+      .slice(0, 300);
+    console.error("[dev/process] setup failure:", msg);
+    return NextResponse.json({ error: "setup_failure", detail: msg, hint: "GET /api/dev/diag?secret=… for a full check" }, { status: 500 });
+  }
+}
+
+async function handle(req: NextRequest) {
   const secret = process.env.DEV_TRY_SECRET;
   if (!secret) return new NextResponse("harness disabled (DEV_TRY_SECRET unset)", { status: 404 });
   const form = await req.formData();
