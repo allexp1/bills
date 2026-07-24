@@ -8,7 +8,8 @@ let singleton: Db | undefined;
 
 export function createDb(url = process.env.DATABASE_URL) {
   if (!url) throw new Error("DATABASE_URL is not set");
-  // Serverless-friendly: small pool, no prepared statements (pgbouncer/Neon pooler).
+  // Serverless-friendly: small pool, no prepared statements — required by
+  // transaction-mode poolers (Supabase Supavisor :6543, pgbouncer).
   const sql = postgres(url, { max: 5, prepare: false });
   return drizzle(sql, { schema });
 }

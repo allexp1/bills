@@ -58,7 +58,7 @@ node scripts/generate-golden-bills.mjs   # regenerate synthetic fixture PDFs
 
 ## Deployment (Vercel)
 
-- Deploy `apps/web`; provision Neon Postgres, Upstash QStash (+ Redis for Phase 2), Vercel Blob.
+- Deploy `apps/web`; provision Supabase Postgres, Upstash QStash (+ Redis for Phase 2), Vercel Blob.
 - Bill processing runs 30–60 s of model calls: job routes declare `maxDuration = 300`, which requires Fluid compute (paid plan). If unavailable, run the same handlers in a small container elsewhere — the package layout keeps transport and pipeline separate.
 - Set every variable from `.env.example`. Generate `ENVELOPE_KEK_BASE64` per environment; production should hold it in a KMS.
 - WhatsApp templates in `packages/channel/src/whatsapp/templates.ts` must be submitted for Meta approval (per locale) before any messaging outside the 24-hour service window.

@@ -3,7 +3,8 @@
 #
 # Prerequisites (once):
 #   export VERCEL_TOKEN=...            # vercel.com/account/tokens
-#   export DATABASE_URL=postgres://... # Neon: neon.tech → new project → connection string (pooled)
+#   export DATABASE_URL=postgres://... # Supabase: Project Settings → Database →
+#                                      # Connection string → "Transaction pooler" (port 6543)
 #   export ANTHROPIC_API_KEY=sk-ant-...
 # Optional now, required for WhatsApp later:
 #   WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, WHATSAPP_APP_SECRET, WHATSAPP_VERIFY_TOKEN
@@ -14,7 +15,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../apps/web"
 
 : "${VERCEL_TOKEN:?set VERCEL_TOKEN (vercel.com/account/tokens)}"
-: "${DATABASE_URL:?set DATABASE_URL (Neon pooled connection string)}"
+: "${DATABASE_URL:?set DATABASE_URL (Supabase transaction-pooler connection string)}"
 : "${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY}"
 
 gen() { node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"; }
