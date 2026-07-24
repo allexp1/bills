@@ -1,0 +1,12 @@
+{
+  "category": "mobile",
+  "common": {
+    "currency": "EUR",
+    "totalAmount": 5798,
+    "providerContains": "MOVILINEA"
+  },
+  "fields": {
+    "addOnCount": 2,
+    "addOnsTotal": 1298
+  }
+}

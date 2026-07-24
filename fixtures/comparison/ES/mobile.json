@@ -1,0 +1,13 @@
+[
+  {
+    "id": "es-mob-digi-25",
+    "provider": "DIGI",
+    "name": "Ilimitado 25GB",
+    "estMonthlyCostMinor": 1000,
+    "currency": "EUR",
+    "country": "ES",
+    "link": "https://www.digimobil.es/tarifas-movil",
+    "validUntil": "2026-12-31",
+    "notes": "Unlimited calls + 25GB. Curated manually 2026-07."
+  }
+]

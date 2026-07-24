@@ -1,0 +1,13 @@
+{
+  "category": "energy",
+  "common": {
+    "currency": "EUR",
+    "totalAmount": 6843,
+    "dueDate": "2026-07-15",
+    "providerContains": "IBERLUZ"
+  },
+  "fields": {
+    "hasEstimatedRead": true,
+    "contractEndDate": "2027-01-31"
+  }
+}

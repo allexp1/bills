@@ -1,0 +1,23 @@
+[
+  {
+    "id": "es-bb-digi-600",
+    "provider": "DIGI",
+    "name": "Fibra 600 Mb",
+    "estMonthlyCostMinor": 2500,
+    "currency": "EUR",
+    "country": "ES",
+    "link": "https://www.digimobil.es/tarifas-fibra",
+    "validUntil": "2026-12-31",
+    "notes": "600 Mbps symmetric. Curated manually 2026-07."
+  },
+  {
+    "id": "es-bb-o2-500",
+    "provider": "O2",
+    "name": "Fibra 500 Mb",
+    "estMonthlyCostMinor": 3000,
+    "currency": "EUR",
+    "country": "ES",
+    "link": "https://o2online.es/fibra",
+    "validUntil": "2026-12-31"
+  }
+]

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "es-energy-octopus-flexible",
+    "provider": "Octopus Energy",
+    "name": "Octopus Flexible",
+    "estMonthlyCostMinor": 5200,
+    "currency": "EUR",
+    "country": "ES",
+    "link": "https://octopusenergy.es/tarifas",
+    "validUntil": "2026-12-31",
+    "notes": "Estimate for ~300 kWh/month, single-rate. Curated manually 2026-07; replace with a live feed."
+  },
+  {
+    "id": "es-energy-endesa-one",
+    "provider": "Endesa",
+    "name": "One Luz",
+    "estMonthlyCostMinor": 5600,
+    "currency": "EUR",
+    "country": "ES",
+    "link": "https://www.endesa.com/es/luz-y-gas/luz/one",
+    "validUntil": "2026-12-31",
+    "notes": "Estimate for ~300 kWh/month."
+  }
+]

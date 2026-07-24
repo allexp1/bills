@@ -1,0 +1,12 @@
+{
+  "category": "broadband",
+  "common": {
+    "currency": "EUR",
+    "totalAmount": 4586,
+    "providerContains": "FIBRACOM"
+  },
+  "fields": {
+    "promoEndDate": "2026-08-31",
+    "outOfContractMonthly": 5490
+  }
+}
