@@ -1,0 +1,24 @@
+{
+  "name": "bills",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:golden": "vitest run --config fixtures/golden-bills/vitest.golden.config.ts",
+    "db:generate": "pnpm --filter @bills/db db:generate",
+    "db:migrate": "pnpm --filter @bills/db db:migrate",
+    "dev": "pnpm --filter @bills/web dev"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}

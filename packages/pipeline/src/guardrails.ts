@@ -1,0 +1,210 @@
+import {
+  pathHasValue,
+  resolvePath,
+  type CategoryPack,
+  type CommonFields,
+  type ComparisonOffer,
+  type LeverVerdict,
+  type MergedExtraction,
+} from "@bills/category-packs";
+import type { DecodeOutput } from "@bills/llm";
+import { parseAmount } from "@bills/shared";
+
+/**
+ * The trust boundary: pure-code verification that every number the decode
+ * model produced is derivable from extracted (or comparison) data. No LLM
+ * involvement — fabricated numbers do not survive this pass.
+ */
+
+export interface GuardedSaving {
+  leverId: string;
+  kind: "optimize_current" | "switch_provider";
+  verdict: LeverVerdict["verdict"];
+  /** null when the number was stripped (flagged lever). */
+  amountMinor: number | null;
+  period: "monthly" | "annual" | "one_off";
+  currency: string;
+  explanation: string;
+  nextStep: string;
+}
+
+export interface GuardedDecode {
+  language: string;
+  headline: string;
+  sections: DecodeOutput["sections"];
+  gotchas: DecodeOutput["gotchas"];
+  printedNextSteps: string[];
+  savings: GuardedSaving[];
+  explainMoreQueue: string[];
+}
+
+export interface GuardrailReport {
+  claims: Array<{ leverId: string; verdict: LeverVerdict["verdict"]; reason?: string; claimedMinor: number; finalMinor: number | null }>;
+  removedSentences: Array<{ where: string; sentence: string }>;
+  droppedCount: number;
+}
+
+/** Currency-amount tokens: "89,10", "1.234,56 €", "€45.00", "EUR 12,50". */
+const AMOUNT_TOKEN =
+  /(?:€|\$|£|EUR|USD|GBP)\s?\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{1,3})?|\d{1,3}(?:[.,\s]\d{3})*[.,]\d{2}\s?(?:€|\$|£|EUR|USD|GBP)?/g;
+
+function tokenToMinor(token: string, currency: string): number | null {
+  return parseAmount(token, currency);
+}
+
+/** Collect every parseable amount present anywhere in the extraction JSON. */
+function extractionAmountSet(extraction: MergedExtraction, currency: string): Set<number> {
+  const out = new Set<number>();
+  const walk = (v: unknown) => {
+    if (typeof v === "string") {
+      if (/\d/.test(v) && v.length <= 24) {
+        const minor = parseAmount(v, currency);
+        if (minor !== null) out.add(minor);
+      }
+    } else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  };
+  walk(extraction.common);
+  walk(extraction.category_fields);
+  return out;
+}
+
+/** Candidate derivable values: base set + pairwise sums and absolute differences. */
+function derivableSet(base: Set<number>, extra: number[]): Set<number> {
+  const values = [...base, ...extra];
+  const out = new Set<number>(values);
+  for (let i = 0; i < values.length; i++) {
+    for (let j = i + 1; j < values.length; j++) {
+      out.add(values[i]! + values[j]!);
+      out.add(Math.abs(values[i]! - values[j]!));
+    }
+  }
+  return out;
+}
+
+function sweepText(
+  text: string,
+  derivable: Set<number>,
+  currency: string,
+  where: string,
+  report: GuardrailReport,
+): string {
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const kept = sentences.filter((sentence) => {
+    const tokens = sentence.match(AMOUNT_TOKEN) ?? [];
+    for (const token of tokens) {
+      const minor = tokenToMinor(token, currency);
+      if (minor !== null && minor !== 0 && !derivable.has(minor)) {
+        report.removedSentences.push({ where, sentence });
+        return false;
+      }
+    }
+    return true;
+  });
+  return kept.join(" ");
+}
+
+export function applyGuardrails(args: {
+  decode: DecodeOutput;
+  extraction: MergedExtraction;
+  pack: CategoryPack<any>;
+  offers: ComparisonOffer[];
+  locale: import("@bills/shared").SupportedLocale;
+}): { guarded: GuardedDecode; report: GuardrailReport } {
+  const { decode, extraction, pack, offers, locale } = args;
+  const currency = extraction.common.currency ?? "EUR";
+  const common = extraction.common as CommonFields;
+  const fields = (extraction.category_fields as Record<string, unknown>)[pack.id];
+
+  const report: GuardrailReport = { claims: [], removedSentences: [], droppedCount: 0 };
+  const savings: GuardedSaving[] = [];
+  const acceptedAmounts: number[] = [];
+
+  for (const claim of decode.savings) {
+    const lever = pack.savingsLevers.find((l) => l.id === claim.leverId);
+    if (!lever) {
+      report.claims.push({ leverId: claim.leverId, verdict: "dropped", reason: "unknown lever", claimedMinor: claim.estimatedSavingMinor, finalMinor: null });
+      report.droppedCount++;
+      continue;
+    }
+    // Cited extraction paths must exist and be non-null.
+    const badPath = claim.basis.extractionPaths.find((p) => !pathHasValue(extraction, p));
+    if (badPath && !claim.basis.comparisonOfferId) {
+      report.claims.push({ leverId: claim.leverId, verdict: "dropped", reason: `cited path missing: ${badPath}`, claimedMinor: claim.estimatedSavingMinor, finalMinor: null });
+      report.droppedCount++;
+      continue;
+    }
+
+    const normalizedClaim = {
+      ...claim,
+      basis: {
+        extractionPaths: claim.basis.extractionPaths,
+        formula: claim.basis.formula ?? undefined,
+        comparisonOfferId: claim.basis.comparisonOfferId ?? undefined,
+      },
+    };
+    const verdict = lever.validate(normalizedClaim, fields as never, common, offers);
+    const finalMinor =
+      verdict.verdict === "verified" || verdict.verdict === "computed" ? verdict.recomputedMinor : null;
+    report.claims.push({
+      leverId: claim.leverId,
+      verdict: verdict.verdict,
+      reason: "reason" in verdict ? verdict.reason : undefined,
+      claimedMinor: claim.estimatedSavingMinor,
+      finalMinor,
+    });
+    if (verdict.verdict === "dropped") {
+      report.droppedCount++;
+      continue;
+    }
+    if (finalMinor !== null) acceptedAmounts.push(finalMinor);
+    savings.push({
+      leverId: claim.leverId,
+      kind: lever.kind,
+      verdict: verdict.verdict,
+      amountMinor: finalMinor,
+      period: claim.period,
+      currency: claim.currency,
+      explanation: claim.explanation,
+      nextStep: lever.nextStep(fields as never, common, locale),
+    });
+  }
+
+  // Numeric sweep over all prose: every currency amount must be derivable
+  // from extraction data (incl. pairwise sums/diffs) or an accepted saving.
+  const derivable = derivableSet(extractionAmountSet(extraction, currency), [
+    ...acceptedAmounts,
+    ...offers.map((o) => o.estMonthlyCostMinor),
+  ]);
+
+  const guarded: GuardedDecode = {
+    language: decode.language,
+    headline: sweepText(decode.headline, derivable, currency, "headline", report),
+    sections: decode.sections
+      .map((s) => ({ ...s, plainExplanation: sweepText(s.plainExplanation, derivable, currency, `section:${s.title}`, report) }))
+      .filter((s) => s.plainExplanation.trim().length > 0),
+    gotchas: decode.gotchas
+      .map((g) => ({ ...g, explanation: sweepText(g.explanation, derivable, currency, `gotcha:${g.checkId}`, report) }))
+      .filter((g) => g.explanation.trim().length > 0),
+    printedNextSteps: decode.printedNextSteps,
+    savings,
+    explainMoreQueue: decode.explainMoreQueue.map((t, i) => sweepText(t, derivable, currency, `explain:${i}`, report)).filter((t) => t.trim().length > 0),
+  };
+
+  return { guarded, report };
+}
+
+/** Run every pack gotcha detector; results injected into the decode prompt as facts. */
+export function computeGotchaFacts(
+  pack: CategoryPack<any>,
+  extraction: MergedExtraction,
+): Record<string, boolean | null> {
+  const fields = (extraction.category_fields as Record<string, unknown>)[pack.id];
+  const facts: Record<string, boolean | null> = {};
+  for (const check of pack.decodeHints.gotchaChecks) {
+    facts[check.id] = check.detect ? check.detect(fields as never, extraction.common as CommonFields) : null;
+  }
+  return facts;
+}
+
+export { resolvePath };
