@@ -11,21 +11,31 @@ import type { ComparisonOffer, ComparisonSource } from "../pack.js";
 export class ManualDataComparisonSource implements ComparisonSource {
   readonly id = "manual";
 
-  constructor(
-    private readonly category: string,
-    private readonly baseDir: string = path.resolve(process.cwd(), "fixtures/comparison"),
-  ) {}
+  /** Repo root in dev; app dir (apps/web) when deployed from the monorepo. */
+  private readonly candidateDirs: string[];
+
+  constructor(private readonly category: string, baseDir?: string) {
+    this.candidateDirs = baseDir
+      ? [baseDir]
+      : [
+          path.resolve(process.cwd(), "fixtures/comparison"),
+          path.resolve(process.cwd(), "../../fixtures/comparison"),
+        ];
+  }
 
   async getOffers(_fields: unknown, common: CommonFields): Promise<ComparisonOffer[]> {
     const country = common.country?.toUpperCase();
     if (!country) return [];
-    try {
-      const raw = await readFile(path.join(this.baseDir, country, `${this.category}.json`), "utf8");
-      const offers = JSON.parse(raw) as ComparisonOffer[];
-      const today = new Date().toISOString().slice(0, 10);
-      return offers.filter((o) => !o.validUntil || o.validUntil >= today);
-    } catch {
-      return []; // no data for this market yet — savings fall back to optimize-current levers
+    for (const dir of this.candidateDirs) {
+      try {
+        const raw = await readFile(path.join(dir, country, `${this.category}.json`), "utf8");
+        const offers = JSON.parse(raw) as ComparisonOffer[];
+        const today = new Date().toISOString().slice(0, 10);
+        return offers.filter((o) => !o.validUntil || o.validUntil >= today);
+      } catch {
+        // try next location
+      }
     }
+    return []; // no data for this market yet — savings fall back to optimize-current levers
   }
 }
