@@ -124,6 +124,21 @@ export default async function SummaryPage({ params }: { params: Promise<{ token:
                   : s.varies}
               </div>
               <div>{saving.explanation}</div>
+              {saving.offer && (
+                <div style={{ marginTop: 6, fontSize: "0.88rem", color: "var(--text-muted)" }}>
+                  🏷 {saving.offer.provider} — {saving.offer.name} (
+                  {formatMoney({ amountMinor: saving.offer.estMonthlyCostMinor, currency: saving.currency }, locale)}
+                  /{s.perMonth!.replace("/", "")})
+                  {saving.offer.link && (
+                    <>
+                      {" · "}
+                      <a href={saving.offer.link} target="_blank" rel="noopener noreferrer nofollow">
+                        {new URL(saving.offer.link).hostname}
+                      </a>
+                    </>
+                  )}
+                </div>
+              )}
               <div className="next">{saving.nextStep}</div>
             </div>
           ))}

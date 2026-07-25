@@ -149,7 +149,10 @@ export function buildSavingsMessages(guarded: GuardedDecode, locale: SupportedLo
       saving.amountMinor !== null
         ? `💰 ~${formatMoney({ amountMinor: saving.amountMinor, currency: saving.currency }, locale)} ${periodLabel(locale, saving.period)}`
         : `💡 ${t(locale, "noNumber")}`;
-    messages.push([amount, saving.explanation, `➡️ ${saving.nextStep}`].join("\n"));
+    const offerLine = saving.offer
+      ? `🏷 ${saving.offer.provider} — ${saving.offer.name} (${formatMoney({ amountMinor: saving.offer.estMonthlyCostMinor, currency: saving.currency }, locale)}/${t(locale, "perMonth").replace(/^\W+/, "")})${saving.offer.link ? `\n${saving.offer.link}` : ""}`
+      : null;
+    messages.push([amount, saving.explanation, offerLine, `➡️ ${saving.nextStep}`].filter(Boolean).join("\n"));
   }
   return messages;
 }

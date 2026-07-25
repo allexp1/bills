@@ -26,6 +26,8 @@ export interface GuardedSaving {
   currency: string;
   explanation: string;
   nextStep: string;
+  /** The concrete market offer this saving is computed against, with source. */
+  offer?: { provider: string; name: string; link?: string; estMonthlyCostMinor: number };
 }
 
 export interface GuardedDecode {
@@ -166,6 +168,9 @@ export function applyGuardrails(args: {
       continue;
     }
     if (finalMinor !== null) acceptedAmounts.push(finalMinor);
+    const citedOffer = claim.basis.comparisonOfferId
+      ? offers.find((o) => o.id === claim.basis.comparisonOfferId)
+      : undefined;
     savings.push({
       leverId: claim.leverId,
       kind: lever.kind,
@@ -175,6 +180,16 @@ export function applyGuardrails(args: {
       currency: claim.currency,
       explanation: claim.explanation,
       nextStep: lever.nextStep(fields as never, common, locale),
+      ...(citedOffer
+        ? {
+            offer: {
+              provider: citedOffer.provider,
+              name: citedOffer.name,
+              link: citedOffer.link,
+              estMonthlyCostMinor: citedOffer.estMonthlyCostMinor,
+            },
+          }
+        : {}),
     });
   }
 

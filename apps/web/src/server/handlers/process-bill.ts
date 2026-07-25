@@ -1,21 +1,18 @@
 import { asc, eq } from "drizzle-orm";
-import { db, decryptEnvelope, encryptJson, schema, type EnvelopeCiphertext } from "@bills/db";
-import { ManualDataComparisonSource, getPack, type ComparisonOffer } from "@bills/category-packs";
-import { decodeBill, extractBill, type BillPage } from "@bills/llm";
+import { db, decryptEnvelope, schema, type EnvelopeCiphertext } from "@bills/db";
+import type { BillPage } from "@bills/llm";
 import {
-  applyGuardrails,
   buildFollowUpButtons,
   buildSummaryMessage,
-  computeGotchaFacts,
-  mintSummaryToken,
   transition,
   t,
   type IntakeState,
 } from "@bills/pipeline";
-import { parseAmount, resolveLocale, type SupportedLocale } from "@bills/shared";
+import { resolveLocale, type SupportedLocale } from "@bills/shared";
 import { channel, keys } from "../wiring.js";
-import { env } from "../env.js";
 import { mediaStore } from "../media-store.js";
+import { loadGuardedDecode } from "../decode-store.js";
+import { runBillPipeline } from "../run-bill-pipeline.js";
 
 /**
  * The Part-A pipeline: extraction → decode → guardrails → delivery.
@@ -53,8 +50,6 @@ export async function processBill(payload: { conversationId: string; invoiceId: 
   const locale = resolveLocale(await customerLocale(conversation.customerId)) as SupportedLocale;
 
   try {
-    await database.update(schema.invoices).set({ status: "extracting" }).where(eq(schema.invoices.id, payload.invoiceId));
-
     // Load and decrypt pages in order.
     const mediaRows = await database
       .select()
@@ -68,117 +63,30 @@ export async function processBill(payload: { conversationId: string; invoiceId: 
       const envelope = JSON.parse(ciphertext.toString()) as EnvelopeCiphertext;
       pages.push({ data: decryptEnvelope(keys(), envelope), mimeType: m.mimeType });
     }
-    if (pages.length === 0) throw new ProcessError("no_pages");
+    if (pages.length === 0) throw new Error("no_pages");
 
-    // 1) Vision extraction (single merged-schema call).
-    const { extraction, usage, model, promptVersion } = await extractBill(pages);
-    const pack = getPack(extraction.category);
-    const [extractionRow] = await database
-      .insert(schema.extractions)
-      .values({
-        invoiceId: payload.invoiceId,
-        packId: pack?.id ?? null,
-        packVersion: pack?.version ?? null,
-        model,
-        promptVersion,
-        data: encryptJson(keys(), extraction),
-        confidence: extraction.field_confidence ?? null,
-        usage,
-        status: extraction.category === "unknown" || extraction.category_confidence < 0.7 ? "low_confidence" : "ok",
-      })
-      .returning({ id: schema.extractions.id });
-
-    if (!pack) throw new ProcessError("unsupported_category");
-
-    await database
-      .update(schema.invoices)
-      .set({
-        status: "decoding",
-        category: extraction.category,
-        currency: extraction.common.currency,
-        country: extraction.common.country,
-        billingPeriodStart: extraction.common.billingPeriodStart,
-        billingPeriodEnd: extraction.common.billingPeriodEnd,
-        issueDate: extraction.common.issueDate,
-        dueDate: extraction.common.dueDate,
-        totalAmountMinor: extraction.common.totalAmount
-          ? parseAmount(extraction.common.totalAmount, extraction.common.currency ?? "EUR")
-          : null,
-        pastDueAmountMinor: extraction.common.pastDueAmount
-          ? parseAmount(extraction.common.pastDueAmount, extraction.common.currency ?? "EUR")
-          : null,
-      })
-      .where(eq(schema.invoices.id, payload.invoiceId));
-
-    // 2) Comparison offers (manual data for now) + deterministic gotcha facts.
-    const fields = (extraction.category_fields as Record<string, unknown>)[pack.id];
-    const comparison = new ManualDataComparisonSource(pack.id);
-    let offers: ComparisonOffer[] = [];
-    try {
-      offers = await comparison.getOffers(fields, extraction.common);
-    } catch {
-      offers = [];
-    }
-    const gotchaFacts = computeGotchaFacts(pack, extraction);
-
-    // 3) Decode + savings plan.
-    const decodeResult = await decodeBill({ extraction, pack, gotchaFacts, offers, customerLocale: locale });
-
-    // 4) Guardrails — pure code; fabricated numbers do not survive.
-    await database.update(schema.invoices).set({ status: "guardrail" }).where(eq(schema.invoices.id, payload.invoiceId));
-    const { guarded, report } = applyGuardrails({
-      decode: decodeResult.decode,
-      extraction,
-      pack,
-      offers,
+    // The shared Part-A pipeline (extraction → offers → decode → guardrails → link).
+    const result = await runBillPipeline({
+      customerId: conversation.customerId!,
+      invoiceId: payload.invoiceId,
+      pages,
       locale,
     });
 
-    await database.insert(schema.decodes).values({
-      invoiceId: payload.invoiceId,
-      extractionId: extractionRow!.id,
-      data: encryptJson(keys(), guarded),
-      guardrailReport: report,
-      localeRendered: locale,
-      model: decodeResult.model,
-      promptVersion: decodeResult.promptVersion,
-      usage: decodeResult.usage,
-    });
-
-    // 5) Signed summary link.
-    const minted = mintSummaryToken(payload.invoiceId, env.summaryJwtSecret);
-    const [tokenRow] = await database
-      .insert(schema.summaryTokens)
-      .values({ invoiceId: payload.invoiceId, tokenHash: minted.tokenHash, expiresAt: minted.expiresAt })
-      .returning({ id: schema.summaryTokens.id });
-    await database
-      .update(schema.invoices)
-      .set({ status: "delivered", summaryTokenId: tokenRow!.id })
-      .where(eq(schema.invoices.id, payload.invoiceId));
-
-    // 6) Deliver: summary + buttons.
-    const url = `${env.summaryBaseUrl}/s/${minted.token}`;
-    await channel().sendText(conversation.peerWaId, buildSummaryMessage(guarded, locale, url));
-    const { body, buttons } = buildFollowUpButtons(payload.invoiceId, locale);
-    await channel().sendButtons(conversation.peerWaId, body, buttons);
+    // Deliver: summary + buttons.
+    const loaded = await loadGuardedDecode(payload.invoiceId);
+    if (loaded) {
+      await channel().sendText(conversation.peerWaId, buildSummaryMessage(loaded.guarded, locale, result.summaryUrl));
+      const { body, buttons } = buildFollowUpButtons(payload.invoiceId, locale);
+      await channel().sendButtons(conversation.peerWaId, body, buttons);
+    }
 
     await settleState(conversation.id, "processing_delivered");
   } catch (err) {
-    const code = err instanceof ProcessError ? err.code : "pipeline_error";
-    console.error(`[process-bill] ${payload.invoiceId} failed: ${code}`, err instanceof Error ? err.message : "");
-    await database
-      .update(schema.invoices)
-      .set({ status: "failed", errorCode: code })
-      .where(eq(schema.invoices.id, payload.invoiceId));
+    console.error(`[process-bill] ${payload.invoiceId} failed:`, err instanceof Error ? err.message.slice(0, 200) : "");
     await settleState(conversation.id, "processing_failed");
     await channel().sendText(conversation.peerWaId, t(locale, "unreadable"));
-    throw err; // let QStash retry transient failures
-  }
-}
-
-class ProcessError extends Error {
-  constructor(readonly code: string) {
-    super(code);
+    throw err; // invoice status already set by the pipeline; QStash retries transient failures
   }
 }
 
