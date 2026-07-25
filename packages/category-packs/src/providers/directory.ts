@@ -36,8 +36,10 @@ function matches(entry: ProviderWaEntry, providerName: string): boolean {
   if (!bill) return false;
   const candidates = [entry.name, ...(entry.aliases ?? [])].map(normalize);
   // Bill names carry legal noise ("Vodafone España S.A.U.") — containment
-  // either way, on word boundaries via the normalized token strings.
-  return candidates.some((c) => c.length >= 3 && (` ${bill} `.includes(` ${c} `) || ` ${c} `.includes(` ${bill} `)));
+  // either way, on word boundaries via the normalized token strings. Min
+  // length 2 admits real brands like "o2" and "Oi"; the token boundary and
+  // country+category scoping keep short names from false-matching.
+  return candidates.some((c) => c.length >= 2 && (` ${bill} `.includes(` ${c} `) || ` ${c} `.includes(` ${bill} `)));
 }
 
 export async function lookupProviderWa(
