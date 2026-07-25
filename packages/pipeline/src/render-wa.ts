@@ -1,5 +1,5 @@
 import type { Button } from "@bills/channel";
-import { buildWaLink, formatMoney, type SupportedLocale } from "@bills/shared";
+import { buildSmsLink, buildWaLink, formatMoney, type SupportedLocale } from "@bills/shared";
 import type { GuardedDecode, GuardedSaving } from "./guardrails.js";
 
 /**
@@ -29,6 +29,9 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     providerWaCta: "💬 {provider} has official WhatsApp support — tap to open the chat with your message already typed:",
     providerWaDraft:
       "Hello! I'm a {provider} customer. I've been reviewing my latest bill and would like to know if there's a better plan, discount or offer available for me. Thank you!",
+    providerSmsCta: "📱 {provider} offers support by text message — text {number} from your phone and ask about better plans or discounts.",
+    providerSmsCtaKeyword: "📱 {provider} offers support by text message — text \"{keyword}\" to {number} from your phone.",
+    providerChatCta: "💻 {provider} has official online chat support:",
   },
   es: {
     fullBreakdown: "Desglose completo",
@@ -50,6 +53,9 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     providerWaCta: "💬 {provider} tiene atención oficial por WhatsApp — toca para abrir el chat con tu mensaje ya escrito:",
     providerWaDraft:
       "¡Hola! Soy cliente de {provider}. He estado revisando mi última factura y me gustaría saber si hay un plan, descuento u oferta mejor disponible para mí. ¡Gracias!",
+    providerSmsCta: "📱 {provider} atiende por SMS — envía un mensaje al {number} desde tu teléfono y pregunta por planes o descuentos mejores.",
+    providerSmsCtaKeyword: "📱 {provider} atiende por SMS — envía \"{keyword}\" al {number} desde tu teléfono.",
+    providerChatCta: "💻 {provider} tiene chat de atención oficial en línea:",
   },
   fr: {
     fullBreakdown: "Détail complet",
@@ -71,6 +77,9 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     providerWaCta: "💬 {provider} propose un support officiel sur WhatsApp — appuyez pour ouvrir la discussion avec votre message déjà rédigé :",
     providerWaDraft:
       "Bonjour ! Je suis client de {provider}. En relisant ma dernière facture, j'aimerais savoir s'il existe un forfait, une remise ou une offre plus avantageuse pour moi. Merci !",
+    providerSmsCta: "📱 {provider} répond par SMS — envoyez un message au {number} depuis votre téléphone pour demander un meilleur forfait ou une remise.",
+    providerSmsCtaKeyword: "📱 {provider} répond par SMS — envoyez \"{keyword}\" au {number} depuis votre téléphone.",
+    providerChatCta: "💻 {provider} propose un chat d'assistance officiel en ligne :",
   },
   pt: {
     fullBreakdown: "Detalhe completo",
@@ -92,6 +101,9 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     providerWaCta: "💬 A {provider} tem apoio oficial por WhatsApp — toque para abrir a conversa com a sua mensagem já escrita:",
     providerWaDraft:
       "Olá! Sou cliente da {provider}. Estive a rever a minha última fatura e gostaria de saber se há um plano, desconto ou oferta melhor disponível para mim. Obrigado!",
+    providerSmsCta: "📱 A {provider} atende por SMS — envie uma mensagem para {number} do seu telefone e pergunte por planos ou descontos melhores.",
+    providerSmsCtaKeyword: "📱 A {provider} atende por SMS — envie \"{keyword}\" para {number} do seu telefone.",
+    providerChatCta: "💻 A {provider} tem chat de apoio oficial online:",
   },
   de: {
     fullBreakdown: "Vollständige Aufschlüsselung",
@@ -113,6 +125,9 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     providerWaCta: "💬 {provider} hat offiziellen WhatsApp-Support — tippen Sie, um den Chat mit Ihrer fertigen Nachricht zu öffnen:",
     providerWaDraft:
       "Hallo! Ich bin Kunde bei {provider}. Ich habe meine letzte Rechnung geprüft und würde gerne wissen, ob es einen besseren Tarif, Rabatt oder ein besseres Angebot für mich gibt. Danke!",
+    providerSmsCta: "📱 {provider} bietet Support per SMS — schreiben Sie an {number} und fragen Sie nach besseren Tarifen oder Rabatten.",
+    providerSmsCtaKeyword: "📱 {provider} bietet Support per SMS — senden Sie \"{keyword}\" an {number}.",
+    providerChatCta: "💻 {provider} hat offiziellen Online-Chat-Support:",
   },
 };
 
@@ -155,15 +170,51 @@ export function buildFollowUpButtons(invoiceId: string, locale: SupportedLocale)
   };
 }
 
+export interface ProviderChatCta {
+  channel: "whatsapp" | "sms" | "web_chat";
+  providerName: string;
+  /** href for buttons: wa.me / sms:…?&body=… / https chat page. */
+  url: string;
+  /** Human-readable endpoint for instruction copy (SMS short code etc.). */
+  displayNumber?: string;
+  /** Fixed keyword the SMS short code expects, when any. */
+  smsKeyword?: string;
+}
+
+/** Normalize providerChat, accepting the legacy WhatsApp-only shape. */
+function providerChatOf(guarded: GuardedDecode): NonNullable<GuardedDecode["providerChat"]> | null {
+  if (guarded.providerChat) return guarded.providerChat;
+  if (guarded.providerWa) return { ...guarded.providerWa, channel: "whatsapp" };
+  return null;
+}
+
 /**
- * The provider's official WhatsApp support, as a click-to-chat link with a
- * localized ask-for-a-better-deal message pre-typed. Null when the curated
- * directory has no source-confirmed number for this provider.
+ * The provider's official support-chat channel as a ready-to-use CTA:
+ * whatsapp/sms deep links carry a localized ask-for-a-better-deal message
+ * pre-typed; web_chat is a plain link (widgets can't preload text). Null
+ * when the curated directory has no source-confirmed channel.
  */
-export function buildProviderWaLink(guarded: GuardedDecode, locale: SupportedLocale): string | null {
-  if (!guarded.providerWa) return null;
-  const draft = t(locale, "providerWaDraft", { provider: guarded.providerWa.providerName });
-  return buildWaLink(guarded.providerWa.waNumber, draft);
+export function buildProviderChatCta(guarded: GuardedDecode, locale: SupportedLocale): ProviderChatCta | null {
+  const chat = providerChatOf(guarded);
+  if (!chat) return null;
+  const providerName = chat.providerName;
+  const draft = t(locale, "providerWaDraft", { provider: providerName });
+  if (chat.channel === "whatsapp" && chat.waNumber) {
+    return { channel: "whatsapp", providerName, url: buildWaLink(chat.waNumber, draft) };
+  }
+  if (chat.channel === "sms" && chat.smsNumber) {
+    return {
+      channel: "sms",
+      providerName,
+      url: buildSmsLink(chat.smsNumber, chat.smsBody ?? draft),
+      displayNumber: chat.smsNumber,
+      ...(chat.smsBody ? { smsKeyword: chat.smsBody } : {}),
+    };
+  }
+  if (chat.channel === "web_chat" && chat.chatUrl) {
+    return { channel: "web_chat", providerName, url: chat.chatUrl };
+  }
+  return null;
 }
 
 /** "Show savings" flow: one message per item, verified numbers only. */
@@ -180,11 +231,20 @@ export function buildSavingsMessages(guarded: GuardedDecode, locale: SupportedLo
       : null;
     messages.push([amount, saving.explanation, offerLine, `➡️ ${saving.nextStep}`].filter(Boolean).join("\n"));
   }
-  const providerLink = buildProviderWaLink(guarded, locale);
-  if (providerLink) {
-    messages.push(
-      `${t(locale, "providerWaCta", { provider: guarded.providerWa!.providerName })}\n${providerLink}`,
-    );
+  const cta = buildProviderChatCta(guarded, locale);
+  if (cta) {
+    if (cta.channel === "whatsapp") {
+      messages.push(`${t(locale, "providerWaCta", { provider: cta.providerName })}\n${cta.url}`);
+    } else if (cta.channel === "sms") {
+      // sms: URIs aren't tappable inside WhatsApp — send instructions instead.
+      messages.push(
+        cta.smsKeyword
+          ? t(locale, "providerSmsCtaKeyword", { provider: cta.providerName, keyword: cta.smsKeyword, number: cta.displayNumber! })
+          : t(locale, "providerSmsCta", { provider: cta.providerName, number: cta.displayNumber! }),
+      );
+    } else {
+      messages.push(`${t(locale, "providerChatCta", { provider: cta.providerName })}\n${cta.url}`);
+    }
   }
   return messages;
 }

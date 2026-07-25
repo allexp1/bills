@@ -3,7 +3,7 @@ import { ulid, ULID_REGEX } from "../src/ids.js";
 import { parseAmount, formatMoney, withinTolerance } from "../src/money.js";
 import { resolveLocale } from "../src/locale.js";
 import { redactForLog, redactRestrictedData, waHash } from "../src/redact.js";
-import { buildWaLink } from "../src/wa-link.js";
+import { buildSmsLink, buildWaLink } from "../src/wa-link.js";
 
 describe("ulid", () => {
   it("produces 26-char sortable ids", () => {
@@ -79,5 +79,13 @@ describe("buildWaLink", () => {
   it("omits text= without a message and rejects empty numbers", () => {
     expect(buildWaLink("+34607100100")).toBe("https://wa.me/34607100100");
     expect(() => buildWaLink("  ")).toThrow();
+  });
+});
+
+describe("buildSmsLink", () => {
+  it("uses the ?&body= separator that both iOS and Android parse", () => {
+    expect(buildSmsLink("266278", "I'd like a better plan")).toBe("sms:266278?&body=I'd%20like%20a%20better%20plan");
+    expect(buildSmsLink("2-66278")).toBe("sms:266278");
+    expect(() => buildSmsLink("--")).toThrow();
   });
 });

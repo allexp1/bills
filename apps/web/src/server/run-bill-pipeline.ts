@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getPack, lookupProviderWa } from "@bills/category-packs";
+import { getPack, lookupProviderChat } from "@bills/category-packs";
 import { db, encryptJson, schema } from "@bills/db";
 import { decodeBill, extractBill, gatherOffers, type BillPage } from "@bills/llm";
 import { applyGuardrails, computeGotchaFacts, mintSummaryToken } from "@bills/pipeline";
@@ -103,14 +103,19 @@ export async function runBillPipeline(args: {
     await database.update(schema.invoices).set({ status: "guardrail" }).where(eq(schema.invoices.id, invoiceId));
     const { guarded, report } = applyGuardrails({ decode: decodeResult.decode, extraction, pack, offers, locale });
 
-    // If the provider has a source-confirmed official WhatsApp channel,
-    // attach it so both renderers can offer a preloaded wa.me link.
-    const providerWa = await lookupProviderWa(extraction.common.providerName, extraction.common.country, pack.id);
-    if (providerWa) {
-      guarded.providerWa = {
-        providerName: extraction.common.providerName ?? providerWa.name,
-        waNumber: providerWa.waNumber,
-        source: providerWa.source,
+    // If the provider has a source-confirmed official support-chat channel
+    // (WhatsApp, SMS short code, or web chat), attach it so both renderers
+    // can offer the customer a way in — preloaded message where possible.
+    const providerChat = await lookupProviderChat(extraction.common.providerName, extraction.common.country, pack.id);
+    if (providerChat) {
+      guarded.providerChat = {
+        providerName: extraction.common.providerName ?? providerChat.name,
+        channel: providerChat.channel ?? "whatsapp",
+        ...(providerChat.waNumber ? { waNumber: providerChat.waNumber } : {}),
+        ...(providerChat.smsNumber ? { smsNumber: providerChat.smsNumber } : {}),
+        ...(providerChat.smsBody ? { smsBody: providerChat.smsBody } : {}),
+        ...(providerChat.chatUrl ? { chatUrl: providerChat.chatUrl } : {}),
+        source: providerChat.source,
       };
     }
 

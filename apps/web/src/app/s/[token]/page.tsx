@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@bills/db";
-import { buildProviderWaLink, verifySummaryToken } from "@bills/pipeline";
+import { buildProviderChatCta, verifySummaryToken } from "@bills/pipeline";
 import { formatMoney, resolveLocale, type SupportedLocale } from "@bills/shared";
 import { loadGuardedDecode } from "../../../server/decode-store.js";
 import { env } from "../../../server/env.js";
@@ -10,11 +10,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const WEB_STRINGS: Record<SupportedLocale, Record<string, string>> = {
-  en: { due: "Due", pastDue: "past due", lineItems: "What you're paying for", gotchas: "Worth knowing", savings: "Where you can save", printed: "Printed on your bill", perMonth: "/month", perYear: "/year", oneOff: "one-off", varies: "amount depends on usage", back: "Continue on WhatsApp", expiredTitle: "This link has expired", expiredBody: "Message us on WhatsApp again and we'll send a fresh one.", period: "Billing period", privacy: "This page is private to you. Nothing here is indexed or shared.", waSupportTitle: "{provider} has official WhatsApp support", waSupportBody: "Tap below to open a chat with them — your message asking for a better deal is already typed, you just press send.", waSupportCta: "Message {provider} on WhatsApp" },
-  es: { due: "Vence", pastDue: "vencido", lineItems: "Qué estás pagando", gotchas: "Conviene saber", savings: "Dónde puedes ahorrar", printed: "Impreso en tu factura", perMonth: "/mes", perYear: "/año", oneOff: "una vez", varies: "el importe depende del consumo", back: "Seguir en WhatsApp", expiredTitle: "Este enlace ha caducado", expiredBody: "Escríbenos de nuevo por WhatsApp y te enviamos uno nuevo.", period: "Periodo de facturación", privacy: "Esta página es privada. Nada aquí se indexa ni se comparte.", waSupportTitle: "{provider} tiene atención oficial por WhatsApp", waSupportBody: "Toca abajo para abrir el chat — tu mensaje pidiendo una oferta mejor ya está escrito, solo pulsa enviar.", waSupportCta: "Escribir a {provider} por WhatsApp" },
-  fr: { due: "Échéance", pastDue: "en retard", lineItems: "Ce que vous payez", gotchas: "Bon à savoir", savings: "Où économiser", printed: "Imprimé sur votre facture", perMonth: "/mois", perYear: "/an", oneOff: "une fois", varies: "montant selon la consommation", back: "Continuer sur WhatsApp", expiredTitle: "Ce lien a expiré", expiredBody: "Écrivez-nous à nouveau sur WhatsApp et nous vous en enverrons un autre.", period: "Période de facturation", privacy: "Cette page est privée. Rien n'est indexé ni partagé.", waSupportTitle: "{provider} propose un support officiel sur WhatsApp", waSupportBody: "Appuyez ci-dessous pour ouvrir la discussion — votre message demandant une meilleure offre est déjà rédigé, il ne reste qu'à envoyer.", waSupportCta: "Écrire à {provider} sur WhatsApp" },
-  pt: { due: "Vencimento", pastDue: "em atraso", lineItems: "O que está a pagar", gotchas: "Vale a pena saber", savings: "Onde pode poupar", printed: "Impresso na sua fatura", perMonth: "/mês", perYear: "/ano", oneOff: "uma vez", varies: "o valor depende do consumo", back: "Continuar no WhatsApp", expiredTitle: "Este link expirou", expiredBody: "Escreva-nos novamente no WhatsApp e enviamos um novo.", period: "Período de faturação", privacy: "Esta página é privada. Nada aqui é indexado ou partilhado.", waSupportTitle: "A {provider} tem apoio oficial por WhatsApp", waSupportBody: "Toque abaixo para abrir a conversa — a sua mensagem a pedir uma oferta melhor já está escrita, basta enviar.", waSupportCta: "Falar com a {provider} no WhatsApp" },
-  de: { due: "Fällig", pastDue: "überfällig", lineItems: "Wofür Sie zahlen", gotchas: "Gut zu wissen", savings: "Wo Sie sparen können", printed: "Auf Ihrer Rechnung gedruckt", perMonth: "/Monat", perYear: "/Jahr", oneOff: "einmalig", varies: "Betrag hängt vom Verbrauch ab", back: "Weiter in WhatsApp", expiredTitle: "Dieser Link ist abgelaufen", expiredBody: "Schreiben Sie uns erneut auf WhatsApp und wir senden einen neuen.", period: "Abrechnungszeitraum", privacy: "Diese Seite ist privat. Nichts wird indexiert oder geteilt.", waSupportTitle: "{provider} hat offiziellen WhatsApp-Support", waSupportBody: "Tippen Sie unten, um den Chat zu öffnen — Ihre Nachricht mit der Frage nach einem besseren Angebot ist schon fertig, nur noch senden.", waSupportCta: "{provider} auf WhatsApp schreiben" },
+  en: { due: "Due", pastDue: "past due", lineItems: "What you're paying for", gotchas: "Worth knowing", savings: "Where you can save", printed: "Printed on your bill", perMonth: "/month", perYear: "/year", oneOff: "one-off", varies: "amount depends on usage", back: "Continue on WhatsApp", expiredTitle: "This link has expired", expiredBody: "Message us on WhatsApp again and we'll send a fresh one.", period: "Billing period", privacy: "This page is private to you. Nothing here is indexed or shared.", waSupportTitle: "{provider} has official WhatsApp support", waSupportBody: "Tap below to open a chat with them — your message asking for a better deal is already typed, you just press send.", waSupportCta: "Message {provider} on WhatsApp", smsSupportTitle: "{provider} offers support by text message", smsSupportBody: "Tap below on your phone — your message is pre-typed, you just press send.", smsSupportCta: "Text {provider} support", chatSupportTitle: "{provider} has online chat support", chatSupportBody: "Opens the provider's official support chat page — ask about better plans or discounts.", chatSupportCta: "Open {provider} support chat" },
+  es: { due: "Vence", pastDue: "vencido", lineItems: "Qué estás pagando", gotchas: "Conviene saber", savings: "Dónde puedes ahorrar", printed: "Impreso en tu factura", perMonth: "/mes", perYear: "/año", oneOff: "una vez", varies: "el importe depende del consumo", back: "Seguir en WhatsApp", expiredTitle: "Este enlace ha caducado", expiredBody: "Escríbenos de nuevo por WhatsApp y te enviamos uno nuevo.", period: "Periodo de facturación", privacy: "Esta página es privada. Nada aquí se indexa ni se comparte.", waSupportTitle: "{provider} tiene atención oficial por WhatsApp", waSupportBody: "Toca abajo para abrir el chat — tu mensaje pidiendo una oferta mejor ya está escrito, solo pulsa enviar.", waSupportCta: "Escribir a {provider} por WhatsApp", smsSupportTitle: "{provider} atiende por SMS", smsSupportBody: "Toca abajo desde tu teléfono — tu mensaje ya está escrito, solo pulsa enviar.", smsSupportCta: "Enviar SMS a {provider}", chatSupportTitle: "{provider} tiene chat de atención en línea", chatSupportBody: "Abre la página oficial de chat del proveedor — pregunta por planes o descuentos mejores.", chatSupportCta: "Abrir el chat de {provider}" },
+  fr: { due: "Échéance", pastDue: "en retard", lineItems: "Ce que vous payez", gotchas: "Bon à savoir", savings: "Où économiser", printed: "Imprimé sur votre facture", perMonth: "/mois", perYear: "/an", oneOff: "une fois", varies: "montant selon la consommation", back: "Continuer sur WhatsApp", expiredTitle: "Ce lien a expiré", expiredBody: "Écrivez-nous à nouveau sur WhatsApp et nous vous en enverrons un autre.", period: "Période de facturation", privacy: "Cette page est privée. Rien n'est indexé ni partagé.", waSupportTitle: "{provider} propose un support officiel sur WhatsApp", waSupportBody: "Appuyez ci-dessous pour ouvrir la discussion — votre message demandant une meilleure offre est déjà rédigé, il ne reste qu'à envoyer.", waSupportCta: "Écrire à {provider} sur WhatsApp", smsSupportTitle: "{provider} répond par SMS", smsSupportBody: "Appuyez ci-dessous depuis votre téléphone — votre message est déjà rédigé, il ne reste qu'à envoyer.", smsSupportCta: "Envoyer un SMS à {provider}", chatSupportTitle: "{provider} propose un chat d'assistance en ligne", chatSupportBody: "Ouvre la page de chat officielle du fournisseur — demandez un meilleur forfait ou une remise.", chatSupportCta: "Ouvrir le chat {provider}" },
+  pt: { due: "Vencimento", pastDue: "em atraso", lineItems: "O que está a pagar", gotchas: "Vale a pena saber", savings: "Onde pode poupar", printed: "Impresso na sua fatura", perMonth: "/mês", perYear: "/ano", oneOff: "uma vez", varies: "o valor depende do consumo", back: "Continuar no WhatsApp", expiredTitle: "Este link expirou", expiredBody: "Escreva-nos novamente no WhatsApp e enviamos um novo.", period: "Período de faturação", privacy: "Esta página é privada. Nada aqui é indexado ou partilhado.", waSupportTitle: "A {provider} tem apoio oficial por WhatsApp", waSupportBody: "Toque abaixo para abrir a conversa — a sua mensagem a pedir uma oferta melhor já está escrita, basta enviar.", waSupportCta: "Falar com a {provider} no WhatsApp", smsSupportTitle: "A {provider} atende por SMS", smsSupportBody: "Toque abaixo no seu telefone — a sua mensagem já está escrita, basta enviar.", smsSupportCta: "Enviar SMS à {provider}", chatSupportTitle: "A {provider} tem chat de apoio online", chatSupportBody: "Abre a página oficial de chat do fornecedor — pergunte por planos ou descontos melhores.", chatSupportCta: "Abrir o chat da {provider}" },
+  de: { due: "Fällig", pastDue: "überfällig", lineItems: "Wofür Sie zahlen", gotchas: "Gut zu wissen", savings: "Wo Sie sparen können", printed: "Auf Ihrer Rechnung gedruckt", perMonth: "/Monat", perYear: "/Jahr", oneOff: "einmalig", varies: "Betrag hängt vom Verbrauch ab", back: "Weiter in WhatsApp", expiredTitle: "Dieser Link ist abgelaufen", expiredBody: "Schreiben Sie uns erneut auf WhatsApp und wir senden einen neuen.", period: "Abrechnungszeitraum", privacy: "Diese Seite ist privat. Nichts wird indexiert oder geteilt.", waSupportTitle: "{provider} hat offiziellen WhatsApp-Support", waSupportBody: "Tippen Sie unten, um den Chat zu öffnen — Ihre Nachricht mit der Frage nach einem besseren Angebot ist schon fertig, nur noch senden.", waSupportCta: "{provider} auf WhatsApp schreiben", smsSupportTitle: "{provider} bietet Support per SMS", smsSupportBody: "Tippen Sie unten auf Ihrem Telefon — Ihre Nachricht ist schon fertig, nur noch senden.", smsSupportCta: "SMS an {provider} senden", chatSupportTitle: "{provider} hat Online-Chat-Support", chatSupportBody: "Öffnet die offizielle Support-Chat-Seite des Anbieters — fragen Sie nach besseren Tarifen oder Rabatten.", chatSupportCta: "{provider}-Chat öffnen" },
 };
 
 function Expired({ locale }: { locale: SupportedLocale }) {
@@ -60,7 +60,8 @@ export default async function SummaryPage({ params }: { params: Promise<{ token:
     invoice.totalAmountMinor !== null
       ? formatMoney({ amountMinor: invoice.totalAmountMinor, currency }, locale)
       : (extraction.common.totalAmount ?? "—");
-  const providerWaLink = buildProviderWaLink(guarded, locale);
+  const chatCta = buildProviderChatCta(guarded, locale);
+  const ctaKey = chatCta?.channel === "sms" ? "sms" : chatCta?.channel === "web_chat" ? "chat" : "wa";
 
   return (
     <main className="page">
@@ -146,18 +147,22 @@ export default async function SummaryPage({ params }: { params: Promise<{ token:
         </>
       )}
 
-      {guarded.providerWa && providerWaLink && (
+      {chatCta && (
         <section className="card" style={{ marginTop: 16 }}>
-          <div style={{ fontWeight: 600 }}>💬 {fill(s.waSupportTitle!, guarded.providerWa.providerName)}</div>
-          <p style={{ color: "var(--text-muted)", margin: "6px 0 12px", fontSize: "0.92rem" }}>{s.waSupportBody}</p>
+          <div style={{ fontWeight: 600 }}>
+            {chatCta.channel === "sms" ? "📱" : chatCta.channel === "web_chat" ? "💻" : "💬"}{" "}
+            {fill(s[`${ctaKey}SupportTitle`]!, chatCta.providerName)}
+          </div>
+          <p style={{ color: "var(--text-muted)", margin: "6px 0 12px", fontSize: "0.92rem" }}>
+            {s[`${ctaKey}SupportBody`]}
+          </p>
           <a
             className="cta"
             style={{ display: "inline-block" }}
-            href={providerWaLink}
-            target="_blank"
-            rel="noopener noreferrer nofollow"
+            href={chatCta.url}
+            {...(chatCta.channel === "sms" ? {} : { target: "_blank", rel: "noopener noreferrer nofollow" })}
           >
-            {fill(s.waSupportCta!, guarded.providerWa.providerName)}
+            {fill(s[`${ctaKey}SupportCta`]!, chatCta.providerName)}
           </a>
         </section>
       )}

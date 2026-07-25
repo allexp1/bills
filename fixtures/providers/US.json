@@ -1,0 +1,55 @@
+[
+  {
+    "name": "Xfinity",
+    "aliases": ["Comcast", "Comcast Cable"],
+    "categories": ["broadband", "mobile"],
+    "channel": "sms",
+    "smsNumber": "266278",
+    "source": "https://www.xfinity.com/support/articles/comcast-alerts",
+    "notes": "266278 (2-66278) is Xfinity's official short code; texting it reaches the Xfinity Assistant. Short codes may reject numbers not on the account."
+  },
+  {
+    "name": "Verizon",
+    "aliases": ["Verizon Wireless", "Verizon Fios"],
+    "categories": ["mobile", "broadband"],
+    "channel": "web_chat",
+    "chatUrl": "https://www.verizon.com/support/contact-us/",
+    "source": "https://www.verizon.com/support/contact-us",
+    "notes": "Chatbot first; typing 'human' escalates to an agent. Also in the My Verizon app."
+  },
+  {
+    "name": "AT&T",
+    "aliases": ["ATT", "AT and T"],
+    "categories": ["mobile", "broadband"],
+    "channel": "web_chat",
+    "chatUrl": "https://www.att.com/support/contact-us/",
+    "source": "https://www.att.com/support/contact-us/",
+    "notes": "Live chat via support pages and the myAT&T app. Prepaid customers can also text 'prepaid' to 75421."
+  },
+  {
+    "name": "T-Mobile",
+    "aliases": ["TMobile", "T Mobile USA", "Metro by T-Mobile"],
+    "categories": ["mobile"],
+    "channel": "web_chat",
+    "chatUrl": "https://www.t-mobile.com/contact-us",
+    "source": "https://www.t-mobile.com/contact-us",
+    "notes": "24/7 chat via t-mobile.com and the T-Life app; also on Apple Messages for Business for iPhone users."
+  },
+  {
+    "name": "Duke Energy",
+    "categories": ["energy"],
+    "channel": "web_chat",
+    "chatUrl": "https://www.duke-energy.com/customer-service",
+    "source": "https://www.duke-energy.com/customer-service",
+    "notes": "Agent chat inside authenticated MyAccount, Mon–Fri 8am–5pm ET."
+  },
+  {
+    "name": "PG&E",
+    "aliases": ["Pacific Gas and Electric", "Pacific Gas & Electric"],
+    "categories": ["energy"],
+    "channel": "web_chat",
+    "chatUrl": "https://www.pge.com/en/account/customer-service.html",
+    "source": "https://www.pge.com/en/account/customer-service.html",
+    "notes": "Customer-service hub; SMS short code 97503 is outage self-service only, not a support conversation."
+  }
+]

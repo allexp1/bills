@@ -39,10 +39,21 @@ export interface GuardedDecode {
   savings: GuardedSaving[];
   explainMoreQueue: string[];
   /**
-   * The bill's provider's official WhatsApp support/sales channel, when the
-   * curated directory has a source-confirmed number — rendered as a wa.me
-   * deep link with a ready-to-send message.
+   * The bill's provider's official support-chat channel, when the curated
+   * directory has a source-confirmed one. whatsapp/sms render as deep links
+   * with a ready-to-send message; web_chat is a plain link to the provider's
+   * official chat page.
    */
+  providerChat?: {
+    providerName: string;
+    channel: "whatsapp" | "sms" | "web_chat";
+    waNumber?: string;
+    smsNumber?: string;
+    smsBody?: string;
+    chatUrl?: string;
+    source: string;
+  };
+  /** @deprecated pre-channel shape; still present on older stored decodes. */
   providerWa?: { providerName: string; waNumber: string; source: string };
 }
 

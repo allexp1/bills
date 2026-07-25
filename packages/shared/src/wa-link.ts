@@ -7,3 +7,13 @@ export function buildWaLink(e164: string, message?: string): string {
   if (!digits) throw new Error("wa number required");
   return message ? `https://wa.me/${digits}?text=${encodeURIComponent(message)}` : `https://wa.me/${digits}`;
 }
+
+/**
+ * SMS deep link with a pre-typed body. The odd `?&body=` form is deliberate:
+ * it's the one separator both iOS and Android parse correctly.
+ */
+export function buildSmsLink(number: string, body?: string): string {
+  const digits = number.replace(/[^\d]/g, "");
+  if (!digits) throw new Error("sms number required");
+  return body ? `sms:${digits}?&body=${encodeURIComponent(body)}` : `sms:${digits}`;
+}

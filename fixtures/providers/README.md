@@ -1,8 +1,15 @@
-# Provider WhatsApp directory
+# Provider support-chat directory
 
-Curated official WhatsApp customer-service numbers, keyed by ISO country code
-(`ES.json`, `PT.json`, …). Used by `lookupProviderWa()` to render wa.me deep
-links with a preloaded message in savings next-steps.
+Curated official customer-service chat channels, keyed by ISO country code
+(`ES.json`, `PT.json`, …). Used by `lookupProviderChat()` to render deep
+links in savings next-steps. Three channel kinds per entry (`channel`
+defaults to `whatsapp`):
+
+- `whatsapp` + `waNumber` → wa.me link with a preloaded message
+- `sms` + `smsNumber` (+ optional `smsBody` keyword) → sms: link with a
+  preloaded body (US short codes)
+- `web_chat` + `chatUrl` → plain link to the provider's official chat page
+  (widgets can't preload text)
 
 ## Verification policy — non-negotiable
 
@@ -41,8 +48,10 @@ entry — see o2 Germany below.
   ambiguous) on official domains; access is in-app/QR only. **CFE**: no
   WhatsApp at all — CFE itself warns circulating "CFE WhatsApp" numbers are
   fraudulent.
-- **US — everyone**: US providers don't use WhatsApp for support. They use
-  web/in-app chat (chatbot-first), a few SMS short codes (Xfinity 266278,
-  AT&T Prepaid 75421), and Apple Messages for Business (T-Mobile). Supporting
-  US bills means a different channel type (sms:/web-chat links), not entries
-  in this directory.
+- **US — WhatsApp**: no US provider uses WhatsApp for support. `US.json`
+  therefore uses the `sms` channel (Xfinity's conversational short code
+  266278) and `web_chat` links (Verizon, AT&T, T-Mobile, Duke Energy, PG&E).
+  Not shipped: Apple Messages for Business (T-Mobile supports it, but
+  business IDs aren't published and it's iPhone-only), RCS (no
+  consumer-initiated deep link exists), Con Edison (chat URL not verified on
+  coned.com), PG&E's 97503 short code (outage self-service, not support).
