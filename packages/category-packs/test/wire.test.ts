@@ -84,7 +84,7 @@ describe("wire schema", () => {
       contractEndDate: "",
       exitFee: "",
       estimatedAnnualCost: "",
-    });
+    }) as Record<string, unknown>;
     expect(parsed.energyType).toBe("unknown");
 
     const domain = normalizeExtraction({
