@@ -5,7 +5,7 @@ import type { CommonFields } from "@bills/category-packs";
 import type { SupportedLocale } from "@bills/shared";
 import { MODEL, anthropic, usageFrom, type LlmUsage } from "./client.js";
 
-export const DECODE_PROMPT_VERSION = "decode-v4";
+export const DECODE_PROMPT_VERSION = "decode-v5";
 
 export const SavingsClaimSchema = z.object({
   leverId: z.string(),
@@ -122,7 +122,14 @@ Negotiation pitch (negotiationPitch) — follow the evidence-based method below;
    - objections: realistic rep pushback ("that promo is for new customers only", "this offer expires with this call") with responses; treat "today only" as pressure, not truth — retention offers regenerate.
    - closing: accept only against the private target; restate the agreed terms, ask for a confirmation number, note when any promo ends.
 14. Pitch grounding is rule 3 applied twice: every amount must trace to basis.extractionPaths or a basis.comparisonOfferIds entry; targetMonthlyMinor must equal a cited offer's price or a defensible bill-derived figure — else null. NEVER put account numbers, ID numbers or payment details in the pitch; "my account" suffices, the provider sees who is writing.
-15. Category nuance: retention haggling works best for telecom/broadband/mobile. For energy bills in markets with regulated/published tariffs (notably the UK), suppliers cannot price-match or deviate — frame the pitch around switching or moving to the provider's best published tariff instead of asking for an off-menu discount.`;
+15. Category nuance: retention haggling works best for telecom/broadband/mobile. For energy bills in markets with regulated/published tariffs (notably the UK), suppliers cannot price-match or deviate — frame the pitch around switching or moving to the provider's best published tariff instead of asking for an off-menu discount.
+16. Prior-bill history: when priorBills is present in the context, explain the biggest month-over-month changes (total delta, charges that appeared/disappeared/changed, usage shifts) — those amounts are the customer's own history and fully citable anywhere, including the pitch ("my bill went from X to Y"). A price creep across months is loyalty_retention ammunition.`;
+}
+
+export interface PriorBillSummary {
+  period: string | null;
+  totalAsPrinted: string | null;
+  lineItems: Array<{ label: string; amount: string | null }>;
 }
 
 export async function decodeBill(args: {
@@ -131,8 +138,10 @@ export async function decodeBill(args: {
   gotchaFacts: Record<string, boolean | null>;
   offers: ComparisonOffer[];
   customerLocale: SupportedLocale;
+  /** The customer's prior bills (same provider+category), oldest first. */
+  priorBills?: PriorBillSummary[];
 }): Promise<DecodeResult> {
-  const { extraction, pack, gotchaFacts, offers, customerLocale } = args;
+  const { extraction, pack, gotchaFacts, offers, customerLocale, priorBills } = args;
   const fields = (extraction.category_fields as Record<string, unknown>)[pack.id];
   const common = extraction.common as CommonFields;
 
@@ -151,6 +160,7 @@ export async function decodeBill(args: {
       availableLevers: applicableLevers.map((l) => ({ id: l.id, kind: l.kind, instruction: l.promptFragment })),
     },
     comparisonOffers: offers,
+    ...(priorBills && priorBills.length > 0 ? { priorBills } : {}),
   };
 
   const response = await anthropic().messages.parse({

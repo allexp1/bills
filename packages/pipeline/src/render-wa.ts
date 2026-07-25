@@ -36,6 +36,13 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     pitchSmsCta: "📱 Send the message above by text to {number} — that's {provider}'s official support line.",
     pitchWebChatHint: "💻 Copy the message above, then paste it into {provider}'s official chat:",
     pitchCall: "Prefer to call? Read this:",
+    histDelta: "{delta} vs your previous bill",
+    histNew: "New this cycle",
+    histGone: "No longer billed",
+    histChanged: "Changed since last bill",
+    histData: "Data used",
+    histKwh: "Consumption",
+    histTitle: "Compared with your previous bill",
     pitchOnOffer: "When they make an offer:",
     pitchGoal: "🎯 Your private goal: {amount}/month. Let THEM make the first offer — never say this number first. Judge every offer against it.",
     pitchTips:
@@ -68,6 +75,13 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     pitchSmsCta: "📱 Envía el mensaje de arriba por SMS al {number} — es la línea oficial de {provider}.",
     pitchWebChatHint: "💻 Copia el mensaje de arriba y pégalo en el chat oficial de {provider}:",
     pitchCall: "¿Prefieres llamar? Lee esto:",
+    histDelta: "{delta} respecto a tu factura anterior",
+    histNew: "Nuevo este ciclo",
+    histGone: "Ya no se factura",
+    histChanged: "Cambió desde la última factura",
+    histData: "Datos usados",
+    histKwh: "Consumo",
+    histTitle: "Comparado con tu factura anterior",
     pitchOnOffer: "Cuando te hagan una oferta:",
     pitchGoal: "🎯 Tu objetivo privado: {amount}/mes. Deja que ELLOS hagan la primera oferta — nunca digas esta cifra primero. Compara cada oferta con ella.",
     pitchTips:
@@ -100,6 +114,13 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     pitchSmsCta: "📱 Envoyez le message ci-dessus par SMS au {number} — la ligne officielle de {provider}.",
     pitchWebChatHint: "💻 Copiez le message ci-dessus, puis collez-le dans le chat officiel de {provider} :",
     pitchCall: "Vous préférez appeler ? Lisez ceci :",
+    histDelta: "{delta} par rapport à votre facture précédente",
+    histNew: "Nouveau ce cycle",
+    histGone: "Plus facturé",
+    histChanged: "A changé depuis la dernière facture",
+    histData: "Données utilisées",
+    histKwh: "Consommation",
+    histTitle: "Par rapport à votre facture précédente",
     pitchOnOffer: "Quand ils font une offre :",
     pitchGoal: "🎯 Votre objectif privé : {amount}/mois. Laissez-LES faire la première offre — ne donnez jamais ce chiffre en premier. Jugez chaque offre par rapport à lui.",
     pitchTips:
@@ -132,6 +153,13 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     pitchSmsCta: "📱 Envie a mensagem acima por SMS para {number} — a linha oficial da {provider}.",
     pitchWebChatHint: "💻 Copie a mensagem acima e cole-a no chat oficial da {provider}:",
     pitchCall: "Prefere ligar? Leia isto:",
+    histDelta: "{delta} face à sua fatura anterior",
+    histNew: "Novo neste ciclo",
+    histGone: "Já não é faturado",
+    histChanged: "Mudou desde a última fatura",
+    histData: "Dados usados",
+    histKwh: "Consumo",
+    histTitle: "Comparado com a sua fatura anterior",
     pitchOnOffer: "Quando fizerem uma oferta:",
     pitchGoal: "🎯 O seu objetivo privado: {amount}/mês. Deixe que sejam ELES a fazer a primeira oferta — nunca diga este número primeiro. Compare cada oferta com ele.",
     pitchTips:
@@ -164,6 +192,13 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     pitchSmsCta: "📱 Senden Sie die Nachricht oben per SMS an {number} — die offizielle Support-Nummer von {provider}.",
     pitchWebChatHint: "💻 Kopieren Sie die Nachricht oben und fügen Sie sie im offiziellen Chat von {provider} ein:",
     pitchCall: "Lieber anrufen? Lesen Sie das:",
+    histDelta: "{delta} gegenüber Ihrer letzten Rechnung",
+    histNew: "Neu in diesem Zyklus",
+    histGone: "Nicht mehr berechnet",
+    histChanged: "Seit der letzten Rechnung geändert",
+    histData: "Datenverbrauch",
+    histKwh: "Verbrauch",
+    histTitle: "Im Vergleich zu Ihrer letzten Rechnung",
     pitchOnOffer: "Wenn ein Angebot kommt:",
     pitchGoal: "🎯 Ihr privates Ziel: {amount}/Monat. Lassen Sie die GEGENSEITE das erste Angebot machen — nennen Sie diese Zahl nie zuerst. Messen Sie jedes Angebot daran.",
     pitchTips:
@@ -181,13 +216,25 @@ export function periodLabel(locale: SupportedLocale, period: GuardedSaving["peri
   return t(locale, period === "monthly" ? "perMonth" : period === "annual" ? "perYear" : "oneOff");
 }
 
+/** Signed "+8,09 €" / "−3,20 €" for month-over-month deltas (code-computed). */
+export function formatDelta(deltaMinor: number, currency: string, locale: SupportedLocale): string {
+  const sign = deltaMinor > 0 ? "+" : deltaMinor < 0 ? "−" : "±";
+  return `${sign}${formatMoney({ amountMinor: Math.abs(deltaMinor), currency }, locale)}`;
+}
+
 /** Message 1: the tidy summary + signed link. Kept well under WhatsApp's 4096-char cap. */
 export function buildSummaryMessage(guarded: GuardedDecode, locale: SupportedLocale, summaryUrl: string): string {
   const topGotcha = [...guarded.gotchas].sort(
     (a, b) => severityRank(b.severity) - severityRank(a.severity),
   )[0];
+  const delta = guarded.history?.vsPrevious?.totalDeltaMinor;
+  const deltaLine =
+    delta !== null && delta !== undefined && delta !== 0
+      ? `${delta > 0 ? "📈" : "📉"} ${t(locale, "histDelta", { delta: formatDelta(delta, guarded.history!.currency, locale) })}`
+      : null;
   const parts = [
     guarded.headline,
+    deltaLine,
     topGotcha ? `⚠️ ${topGotcha.explanation}` : null,
     `🔗 ${t(locale, "fullBreakdown")}: ${summaryUrl}`,
   ].filter(Boolean);

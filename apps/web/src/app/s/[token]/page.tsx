@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@bills/db";
-import { buildProviderChatCta, t as tPipeline, verifySummaryToken } from "@bills/pipeline";
+import { buildProviderChatCta, formatDelta, t as tPipeline, verifySummaryToken } from "@bills/pipeline";
 import { formatMoney, resolveLocale, type SupportedLocale } from "@bills/shared";
 import { loadGuardedDecode } from "../../../server/decode-store.js";
 import { env } from "../../../server/env.js";
@@ -80,6 +80,68 @@ export default async function SummaryPage({ params }: { params: Promise<{ token:
         </div>
         <p className="headline">{guarded.headline}</p>
       </section>
+
+      {guarded.history?.vsPrevious && (
+        <>
+          <h2>📊 {tPipeline(locale, "histTitle")}</h2>
+          <section className="card">
+            {guarded.history.totalsTrend.length > 1 && (
+              <div style={{ fontSize: "1.05rem", marginBottom: 8 }}>
+                {guarded.history.totalsTrend
+                  .map((p) =>
+                    p.totalMinor !== null
+                      ? formatMoney({ amountMinor: p.totalMinor, currency: guarded.history!.currency }, locale)
+                      : "—",
+                  )
+                  .join(" → ")}
+                {guarded.history.vsPrevious.totalDeltaMinor !== null &&
+                  guarded.history.vsPrevious.totalDeltaMinor !== 0 && (
+                    <b style={{ marginLeft: 8, color: guarded.history.vsPrevious.totalDeltaMinor > 0 ? "#c0392b" : "#27ae60" }}>
+                      {formatDelta(guarded.history.vsPrevious.totalDeltaMinor, guarded.history.currency, locale)}
+                    </b>
+                  )}
+              </div>
+            )}
+            {guarded.history.vsPrevious.newItems.length > 0 && (
+              <p style={{ margin: "6px 0" }}>
+                <b>{tPipeline(locale, "histNew")}:</b>{" "}
+                {guarded.history.vsPrevious.newItems
+                  .map((i) => `${i.label}${i.amountMinor !== null ? ` (${formatMoney({ amountMinor: i.amountMinor, currency: guarded.history!.currency }, locale)})` : ""}`)
+                  .join(", ")}
+              </p>
+            )}
+            {guarded.history.vsPrevious.removedItems.length > 0 && (
+              <p style={{ margin: "6px 0" }}>
+                <b>{tPipeline(locale, "histGone")}:</b>{" "}
+                {guarded.history.vsPrevious.removedItems.map((i) => i.label).join(", ")}
+              </p>
+            )}
+            {guarded.history.vsPrevious.changedItems.length > 0 && (
+              <p style={{ margin: "6px 0" }}>
+                <b>{tPipeline(locale, "histChanged")}:</b>{" "}
+                {guarded.history.vsPrevious.changedItems
+                  .map(
+                    (i) =>
+                      `${i.label}: ${formatMoney({ amountMinor: i.fromMinor, currency: guarded.history!.currency }, locale)} → ${formatMoney({ amountMinor: i.toMinor, currency: guarded.history!.currency }, locale)}`,
+                  )
+                  .join(", ")}
+              </p>
+            )}
+            {guarded.history.vsPrevious.dataUsedDeltaGb !== null && (
+              <p style={{ margin: "6px 0", color: "var(--text-muted)" }}>
+                {tPipeline(locale, "histData")}: {guarded.history.vsPrevious.dataUsedDeltaGb > 0 ? "+" : ""}
+                {guarded.history.vsPrevious.dataUsedDeltaGb} GB
+              </p>
+            )}
+            {guarded.history.vsPrevious.usageKwhDelta !== null && (
+              <p style={{ margin: "6px 0", color: "var(--text-muted)" }}>
+                {tPipeline(locale, "histKwh")}: {guarded.history.vsPrevious.usageKwhDelta > 0 ? "+" : ""}
+                {guarded.history.vsPrevious.usageKwhDelta} kWh
+              </p>
+            )}
+          </section>
+        </>
+      )}
 
       {extraction.common.lineItems.length > 0 && (
         <>

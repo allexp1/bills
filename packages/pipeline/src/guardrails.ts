@@ -9,6 +9,7 @@ import {
 } from "@bills/category-packs";
 import type { DecodeOutput, NegotiationPitch } from "@bills/llm";
 import { parseAmount, redactRestrictedData, withinTolerance } from "@bills/shared";
+import type { BillHistory } from "./bill-history.js";
 
 /**
  * The trust boundary: pure-code verification that every number the decode
@@ -62,6 +63,8 @@ export interface GuardedDecode {
   explainMoreQueue: string[];
   /** Negotiation pitch to the current provider, post-sweep; absent when dropped or not generated. */
   pitch?: GuardedPitch;
+  /** Month-over-month comparison vs the customer's prior bills (pure code, attached post-guardrails). */
+  history?: BillHistory;
   /**
    * The bill's provider's official support-chat channel, when the curated
    * directory has a source-confirmed one. whatsapp/sms render as deep links
@@ -161,8 +164,10 @@ export function applyGuardrails(args: {
   pack: CategoryPack<any>;
   offers: ComparisonOffer[];
   locale: import("@bills/shared").SupportedLocale;
+  /** Amounts from the customer's PRIOR bills — their own facts, fully citable. */
+  priorAmounts?: number[];
 }): { guarded: GuardedDecode; report: GuardrailReport } {
-  const { decode, extraction, pack, offers, locale } = args;
+  const { decode, extraction, pack, offers, locale, priorAmounts = [] } = args;
   const currency = extraction.common.currency ?? "EUR";
   const common = extraction.common as CommonFields;
   const fields = (extraction.category_fields as Record<string, unknown>)[pack.id];
@@ -237,6 +242,7 @@ export function applyGuardrails(args: {
   // Numeric sweep over all prose: every currency amount must be derivable
   // from extraction data (incl. pairwise sums/diffs) or an accepted saving.
   const extractionAmounts = extractionAmountSet(extraction, currency);
+  for (const a of priorAmounts) extractionAmounts.add(a);
   const derivable = derivableSet(extractionAmounts, [
     ...acceptedAmounts,
     ...offers.map((o) => o.estMonthlyCostMinor),

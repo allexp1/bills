@@ -25,6 +25,7 @@ export default function Home() {
           <li>🔎 <b>Decode</b> — every line item explained; estimated readings, expiring promos and price jumps called out.</li>
           <li>🌍 <b>Research</b> — the AI searches current offers from other providers in your country and compares them to what you pay.</li>
           <li>💰 <b>Save</b> — concrete steps with verified amounts. Every number is checked in code against your bill's data; nothing is invented.</li>
+          <li>📊 <b>Track</b> — upload each month's bill and we show exactly what changed: total, new charges, price creep, your usage.</li>
         </ol>
       </section>
 

@@ -9,6 +9,7 @@ export {
   type DecodeOutput,
   type DecodeResult,
   type NegotiationPitch,
+  type PriorBillSummary,
 } from "./decode.js";
 export { extractionSystemPrompt, EXTRACTION_PROMPT_VERSION } from "./prompts/extraction.js";
 export { WebSearchComparisonSource } from "./comparison-search.js";

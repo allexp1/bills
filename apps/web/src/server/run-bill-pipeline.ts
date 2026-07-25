@@ -1,11 +1,20 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { getPack, lookupProviderChat } from "@bills/category-packs";
 import { db, encryptJson, schema } from "@bills/db";
-import { decodeBill, extractBill, gatherOffers, type BillPage } from "@bills/llm";
-import { applyGuardrails, computeGotchaFacts, mintSummaryToken } from "@bills/pipeline";
+import { decodeBill, extractBill, gatherOffers, type BillPage, type PriorBillSummary } from "@bills/llm";
+import {
+  applyGuardrails,
+  buildBillHistory,
+  computeGotchaFacts,
+  mintSummaryToken,
+  snapshotAmounts,
+  snapshotFromExtraction,
+  type BillSnapshot,
+} from "@bills/pipeline";
 import { parseAmount, type SupportedLocale } from "@bills/shared";
 import { keys } from "./wiring.js";
 import { env } from "./env.js";
+import { loadGuardedDecode } from "./decode-store.js";
 
 export interface PipelineRunResult {
   summaryUrl: string;
@@ -112,15 +121,38 @@ export async function runBillPipeline(args: {
         console.warn("[pipeline] history columns write failed (migration 0001 applied?):", err instanceof Error ? err.message.slice(0, 120) : "");
       });
 
+    // Prior bills of the same provider+category → month-over-month comparison.
+    const priorSnapshots = await loadPriorSnapshots(customerId, invoiceId, extraction.common.providerName, pack.id);
+
     // Live market research (web search) merged with curated data — best-effort.
     const fields = (extraction.category_fields as Record<string, unknown>)[pack.id];
     const offers = await gatherOffers(pack.id, fields, extraction.common);
     const gotchaFacts = computeGotchaFacts(pack, extraction);
 
-    const decodeResult = await decodeBill({ extraction, pack, gotchaFacts, offers, customerLocale: locale });
+    const decodeResult = await decodeBill({
+      extraction,
+      pack,
+      gotchaFacts,
+      offers,
+      customerLocale: locale,
+      priorBills: priorSnapshots.map((p) => p.summary),
+    });
 
     await database.update(schema.invoices).set({ status: "guardrail" }).where(eq(schema.invoices.id, invoiceId));
-    const { guarded, report } = applyGuardrails({ decode: decodeResult.decode, extraction, pack, offers, locale });
+    const { guarded, report } = applyGuardrails({
+      decode: decodeResult.decode,
+      extraction,
+      pack,
+      offers,
+      locale,
+      priorAmounts: priorSnapshots.flatMap((p) => snapshotAmounts(p.snapshot)),
+    });
+
+    const history = buildBillHistory(
+      snapshotFromExtraction(invoiceId, extraction),
+      priorSnapshots.map((p) => p.snapshot),
+    );
+    if (history) guarded.history = history;
 
     // If the provider has a source-confirmed official support-chat channel
     // (WhatsApp, SMS short code, or web chat), attach it so both renderers
@@ -170,5 +202,54 @@ export async function runBillPipeline(args: {
     const code = err instanceof PipelineError ? err.code : "pipeline_error";
     await database.update(schema.invoices).set({ status: "failed", errorCode: code }).where(eq(schema.invoices.id, invoiceId));
     throw err;
+  }
+}
+
+/**
+ * The customer's prior delivered bills for the same provider+category,
+ * oldest first (up to 5): snapshots for the pure-code diff plus printed-
+ * string summaries for the decode context. Best-effort — returns [] when
+ * migration 0001 (provider_name) isn't applied or extractions are gone.
+ */
+async function loadPriorSnapshots(
+  customerId: string,
+  currentInvoiceId: string,
+  providerName: string | null,
+  category: string,
+): Promise<Array<{ snapshot: BillSnapshot; summary: PriorBillSummary }>> {
+  if (!providerName) return [];
+  try {
+    const rows = await db()
+      .select({ id: schema.invoices.id })
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.customerId, customerId),
+          eq(schema.invoices.status, "delivered"),
+          eq(schema.invoices.providerName, providerName),
+          eq(schema.invoices.category, category),
+          ne(schema.invoices.id, currentInvoiceId),
+        ),
+      )
+      .orderBy(desc(schema.invoices.createdAt))
+      .limit(5);
+
+    const out: Array<{ snapshot: BillSnapshot; summary: PriorBillSummary }> = [];
+    for (const row of rows) {
+      const loaded = await loadGuardedDecode(row.id).catch(() => null);
+      if (!loaded) continue;
+      const snapshot = snapshotFromExtraction(row.id, loaded.extraction);
+      out.push({
+        snapshot,
+        summary: {
+          period: snapshot.period,
+          totalAsPrinted: loaded.extraction.common.totalAmount,
+          lineItems: loaded.extraction.common.lineItems.map((li) => ({ label: li.label, amount: li.amount })),
+        },
+      });
+    }
+    return out.reverse(); // oldest first
+  } catch {
+    return [];
   }
 }
