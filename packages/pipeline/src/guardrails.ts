@@ -69,10 +69,18 @@ function extractionAmountSet(extraction: MergedExtraction, currency: string): Se
   return out;
 }
 
-/** Candidate derivable values: base set + pairwise sums and absolute differences. */
+/**
+ * Candidate derivable values: base set + pairwise sums/differences + common
+ * period conversions (×12 annualization, ÷12 monthlyization) — the decode
+ * legitimately writes "that's X per year" for a monthly amount.
+ */
 function derivableSet(base: Set<number>, extra: number[]): Set<number> {
   const values = [...base, ...extra];
   const out = new Set<number>(values);
+  for (const v of values) {
+    out.add(v * 12);
+    out.add(Math.round(v / 12));
+  }
   for (let i = 0; i < values.length; i++) {
     for (let j = i + 1; j < values.length; j++) {
       out.add(values[i]! + values[j]!);

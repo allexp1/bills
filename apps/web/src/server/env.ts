@@ -16,10 +16,10 @@ export const env = {
     return required("SUMMARY_JWT_SECRET");
   },
   get summaryBaseUrl() {
-    return process.env.SUMMARY_BASE_URL ?? process.env.APP_BASE_URL ?? "http://localhost:3000";
+    return process.env.SUMMARY_BASE_URL ?? process.env.APP_BASE_URL ?? vercelUrl() ?? "http://localhost:3000";
   },
   get appBaseUrl() {
-    return process.env.APP_BASE_URL ?? "http://localhost:3000";
+    return process.env.APP_BASE_URL ?? vercelUrl() ?? "http://localhost:3000";
   },
   get qstashToken() {
     return process.env.QSTASH_TOKEN ?? null;
@@ -28,6 +28,12 @@ export const env = {
     return required("WA_HASH_PEPPER");
   },
 };
+
+/** Vercel injects the stable production hostname automatically. */
+function vercelUrl(): string | null {
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+  return host ? `https://${host}` : null;
+}
 
 function required(name: string): string {
   const v = process.env[name];
