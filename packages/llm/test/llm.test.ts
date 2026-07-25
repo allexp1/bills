@@ -2,6 +2,33 @@ import { describe, expect, it } from "vitest";
 import { usageFrom } from "../src/client.js";
 import { extractionSystemPrompt } from "../src/prompts/extraction.js";
 import { DecodeOutputSchema } from "../src/decode.js";
+import { lqaMerge } from "../src/translate.js";
+
+describe("translation LQA (numeric invariance)", () => {
+  it("keeps faithful translations, falls back on changed numbers", () => {
+    const source = ["Cuota Plan 800GB", "Descuento 2,00 € por e-factura", "Seguro móvil"];
+    const translated = ["800GB plan fee", "2.00 € discount for e-billing", "Mobile insurance"];
+    const { merged, fellBack } = lqaMerge(source, translated);
+    expect(merged).toEqual(translated);
+    expect(fellBack).toBe(0);
+  });
+
+  it("a number changed in translation → that item falls back to the original", () => {
+    const { merged, fellBack } = lqaMerge(["Cuota 45,00 €"], ["Fee of 54.00 €"]);
+    expect(merged).toEqual(["Cuota 45,00 €"]);
+    expect(fellBack).toBe(1);
+  });
+
+  it("length mismatch → full fallback; empty translation of non-empty source falls back", () => {
+    expect(lqaMerge(["a", "b"], ["only one"])).toEqual({ merged: ["a", "b"], fellBack: 2 });
+    expect(lqaMerge(["Cuota fija"], ["  "])).toEqual({ merged: ["Cuota fija"], fellBack: 1 });
+  });
+
+  it("separator changes are fine as long as digits survive", () => {
+    const { fellBack } = lqaMerge(["Consumo 1.234,56"], ["Usage 1,234.56"]);
+    expect(fellBack).toBe(0);
+  });
+});
 
 describe("usageFrom", () => {
   it("maps API usage with null cache fields", () => {

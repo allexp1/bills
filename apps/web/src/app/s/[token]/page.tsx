@@ -149,17 +149,26 @@ export default async function SummaryPage({ params }: { params: Promise<{ token:
           <section className="card">
             <table className="items">
               <tbody>
-                {extraction.common.lineItems.map((item, i) => (
-                  <tr key={i}>
-                    <td>
-                      {item.label}
-                      {annotationFor(item.label, guarded) && (
-                        <span className="note">{annotationFor(item.label, guarded)}</span>
-                      )}
-                    </td>
-                    <td className="amount">{item.amount ?? ""}</td>
-                  </tr>
-                ))}
+                {extraction.common.lineItems.map((item, i) => {
+                  const translated = guarded.translation?.lineItemLabels[i];
+                  const showOriginal = translated !== undefined && translated !== item.label;
+                  return (
+                    <tr key={i}>
+                      <td>
+                        {translated ?? item.label}
+                        {showOriginal && (
+                          <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                            {item.label}
+                          </span>
+                        )}
+                        {annotationFor(item.label, guarded) && (
+                          <span className="note">{annotationFor(item.label, guarded)}</span>
+                        )}
+                      </td>
+                      <td className="amount">{item.amount ?? ""}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </section>
@@ -316,9 +325,19 @@ export default async function SummaryPage({ params }: { params: Promise<{ token:
           <h2>{s.printed}</h2>
           <section className="card">
             <ul className="printed">
-              {guarded.printedNextSteps.map((step, i) => (
-                <li key={i}>{step}</li>
-              ))}
+              {(guarded.translation ? extraction.common.printedNextSteps : guarded.printedNextSteps).map((step, i) => {
+                // translations index against the EXTRACTION's steps, so render that list when translated
+                const translated = guarded.translation?.printedNextSteps[i];
+                const showOriginal = translated !== undefined && translated !== step;
+                return (
+                  <li key={i}>
+                    {translated ?? step}
+                    {showOriginal && (
+                      <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.8rem" }}>{step}</span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         </>

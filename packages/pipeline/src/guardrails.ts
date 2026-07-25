@@ -66,6 +66,18 @@ export interface GuardedDecode {
   /** Month-over-month comparison vs the customer's prior bills (pure code, attached post-guardrails). */
   history?: BillHistory;
   /**
+   * Bill text translated into the customer's language (attached post-
+   * guardrails), LQA-verified: numbers are code-checked invariant and any
+   * failing item fell back to the original.
+   */
+  translation?: {
+    language: string;
+    lineItemLabels: string[];
+    printedNextSteps: string[];
+    discountLabels: string[];
+    lqa: { checked: number; fellBack: number };
+  };
+  /**
    * The bill's provider's official support-chat channel, when the curated
    * directory has a source-confirmed one. whatsapp/sms render as deep links
    * with a ready-to-send message; web_chat is a plain link to the provider's

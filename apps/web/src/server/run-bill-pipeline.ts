@@ -1,7 +1,7 @@
 import { and, desc, eq, ne } from "drizzle-orm";
 import { getPack, lookupProviderChat } from "@bills/category-packs";
 import { db, encryptJson, schema } from "@bills/db";
-import { decodeBill, extractBill, gatherOffers, type BillPage, type PriorBillSummary } from "@bills/llm";
+import { decodeBill, extractBill, gatherOffers, translateBillView, type BillPage, type PriorBillSummary } from "@bills/llm";
 import {
   applyGuardrails,
   buildBillHistory,
@@ -153,6 +153,23 @@ export async function runBillPipeline(args: {
       priorSnapshots.map((p) => p.snapshot),
     );
     if (history) guarded.history = history;
+
+    // Bill-view translation (LQA-verified) when the customer's language
+    // differs from the bill's — best-effort, never blocks delivery.
+    try {
+      const translation = await translateBillView({ extraction, targetLanguage: locale });
+      if (translation) {
+        guarded.translation = {
+          language: translation.language,
+          lineItemLabels: translation.lineItemLabels,
+          printedNextSteps: translation.printedNextSteps,
+          discountLabels: translation.discountLabels,
+          lqa: translation.lqa,
+        };
+      }
+    } catch (err) {
+      console.warn("[pipeline] translation skipped:", err instanceof Error ? err.message.slice(0, 120) : "");
+    }
 
     // If the provider has a source-confirmed official support-chat channel
     // (WhatsApp, SMS short code, or web chat), attach it so both renderers
