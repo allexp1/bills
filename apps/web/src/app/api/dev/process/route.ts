@@ -155,8 +155,12 @@ async function handle(req: NextRequest) {
     });
   } catch (err) {
     await database.update(schema.invoices).set({ status: "failed", errorCode: "pipeline_error" }).where(eqId(invoice!.id));
-    console.error("[dev/process]", err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: "pipeline_error" }, { status: 500 });
+    const detail = (err instanceof Error ? `${err.name}: ${err.message}` : String(err))
+      .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "postgres://[redacted]")
+      .replace(/sk-ant-[A-Za-z0-9_-]+/g, "sk-ant-[redacted]")
+      .slice(0, 300);
+    console.error("[dev/process]", detail);
+    return NextResponse.json({ error: "pipeline_error", detail }, { status: 500 });
   }
 }
 

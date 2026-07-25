@@ -20,7 +20,8 @@ export default function TryPage() {
       const res = await fetch("/api/dev/process", { method: "POST", body: new FormData(e.currentTarget) });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.summaryUrl) {
-        setError(json?.error ?? `HTTP ${res.status}`);
+        const parts = [json?.error ?? `HTTP ${res.status}`, json?.detail, json?.hint].filter(Boolean);
+        setError(parts.join(" — "));
       } else {
         setResult(JSON.stringify(json, null, 2));
         window.open(json.summaryUrl, "_blank");
