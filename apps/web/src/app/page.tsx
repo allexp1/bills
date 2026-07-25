@@ -31,8 +31,9 @@ export default function Home() {
       <h2>Privacy</h2>
       <section className="card">
         <p style={{ margin: 0 }}>
-          Your bill is sensitive. Extracted data is encrypted at rest, your summary link is private and expires
-          in 7 days, nothing is indexed or shared, and raw bill images are deleted automatically after 90 days.
+          Your bill is sensitive. We never store your bill images or PDFs — they're analyzed and immediately
+          discarded; only the structured summary is kept, encrypted at rest. Your summary link is private,
+          expires in 7 days, and nothing is indexed or shared.
         </p>
       </section>
 

@@ -1,0 +1,58 @@
+[
+  {
+    "name": "Vivo",
+    "aliases": ["Telefônica Brasil", "Vivo Fibra", "Vivo Móvel"],
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+5511999151515",
+    "source": "https://vivo.com.br/para-voce/ajuda/mais-ajuda/fale-com-a-vivo",
+    "notes": "Aura assistant answers first; verified WhatsApp badge."
+  },
+  {
+    "name": "Claro",
+    "aliases": ["Claro Brasil", "NET", "Embratel"],
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+5511999910621",
+    "source": "https://www.claro.com.br/blog/atendimento/numeros-da-claro",
+    "notes": "Sudeste-region number; other regions use +5532999910621 per the same official page."
+  },
+  {
+    "name": "TIM",
+    "aliases": ["TIM Brasil"],
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+554141414141",
+    "source": "https://www.tim.com.br/ajuda/perguntas-frequentes/tudo-sobre-tim/canais-de-atendimento/whatsapp",
+    "notes": "Virtual assistant; balance, plan changes, invoices."
+  },
+  {
+    "name": "Oi",
+    "aliases": ["Oi Fibra"],
+    "categories": ["broadband"],
+    "waNumber": "+553131313131",
+    "source": "https://www.oi.com.br/minha-oi/atendimento-oi",
+    "notes": "Bot 'Joice', 24h; Oi exited mobile — broadband only."
+  },
+  {
+    "name": "Enel",
+    "aliases": ["Enel Distribuição São Paulo", "Enel São Paulo", "Enel Rio", "Enel Distribuição Rio", "Eletropaulo"],
+    "categories": ["energy"],
+    "waNumber": "+5521996019608",
+    "source": "https://www.enel.com.br/pt-saopaulo/atendimento.html",
+    "notes": "Bot 'Elena'; one number serves all Enel Brasil concessions (SP, Rio, Ceará)."
+  },
+  {
+    "name": "CPFL",
+    "aliases": ["CPFL Energia", "CPFL Paulista", "CPFL Piratininga", "CPFL Santa Cruz"],
+    "categories": ["energy"],
+    "waNumber": "+5519999088888",
+    "source": "https://www.cpfl.com.br/atendimento-whatsapp",
+    "notes": "Confirmed in CPFL's own press release announcing this number; sister brand RGE uses a different number."
+  },
+  {
+    "name": "CEMIG",
+    "aliases": ["Companhia Energética de Minas Gerais", "Cemig Atende"],
+    "categories": ["energy"],
+    "waNumber": "+553135061160",
+    "source": "https://portal.cemig.com.br/atendimento/servicos-cemig-por-whatsapp/",
+    "notes": "Send 'oi' to start; new connection, ownership change, social tariff."
+  }
+]

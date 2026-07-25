@@ -7,12 +7,14 @@ import { mediaStore } from "../../../../server/media-store.js";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const RETENTION_DAYS = Number(process.env.MEDIA_RETENTION_DAYS ?? 90);
+const RETENTION_DAYS = Number(process.env.MEDIA_RETENTION_DAYS ?? 1);
 
 /**
- * Vercel Cron: purge bill media older than the retention window. Extracted
- * data and decodes stay (they're what the customer keeps using); the raw
- * bill images/PDFs are the most sensitive artifact and the first to go.
+ * Vercel Cron: backstop for the no-retention policy. Successful runs delete
+ * their media immediately (purgeInvoiceMedia); this sweeps the stragglers —
+ * failed or abandoned invoices — after a short grace window that keeps
+ * QStash retries working. Extracted data and decodes stay (encrypted);
+ * the raw bill images/PDFs never outlive the day.
  * Configured in vercel.json; protected by CRON_SECRET.
  */
 export async function GET(req: NextRequest) {

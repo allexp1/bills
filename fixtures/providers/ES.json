@@ -22,5 +22,59 @@
     "waNumber": "+34653850085",
     "source": "https://ayuda.orange.es/particulares/movil/servicios/2628-contacta-con-atencion-al-cliente-de-orange-por-whatsapp-guarda-nuestro-numero-en-tu-agenda-653-85-00-85",
     "notes": "24/7 per Orange help pages; provider asks customers to write from their Orange line."
+  },
+  {
+    "name": "Yoigo",
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+34633996999",
+    "source": "https://www.yoigo.com/ayuda/atencion-al-cliente-por-whatsapp",
+    "notes": "Dedicated official help page; bot with human escalation; best used from a Yoigo line."
+  },
+  {
+    "name": "MásMóvil",
+    "aliases": ["MASMOVIL", "MasMovil"],
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+34605515454",
+    "source": "https://www.masmovil.es/ayuda-clientes/atencion-al-cliente-por-whatsapp",
+    "notes": "Same scope as phone support; Mon–Sun 08:00–22:00."
+  },
+  {
+    "name": "DIGI",
+    "aliases": ["DIGI España", "Digimobil"],
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+34642642642",
+    "source": "https://www.digimobil.es/atencion-cliente/contacto/particular",
+    "notes": "Official contact page; 08:00–23:00."
+  },
+  {
+    "name": "Iberdrola",
+    "aliases": ["Iberdrola Clientes", "Iberdrola España"],
+    "categories": ["energy"],
+    "waNumber": "+34601225235",
+    "source": "https://www.iberdrolaespana.com/contact",
+    "notes": "Listed on Iberdrola España's official contact page."
+  },
+  {
+    "name": "Endesa",
+    "aliases": ["Endesa Energía", "Endesa Clientes"],
+    "categories": ["energy"],
+    "waNumber": "+34638860649",
+    "source": "https://www.endesa.com/en/advice",
+    "notes": "Mon–Fri 09:00–22:00; bill amounts and product info."
+  },
+  {
+    "name": "Naturgy",
+    "categories": ["energy"],
+    "waNumber": "+34699000699",
+    "source": "https://www.naturgy.es/hogar/ayuda/contacto",
+    "notes": "24/7 chat channel per official contact page."
+  },
+  {
+    "name": "TotalEnergies",
+    "aliases": ["TotalEnergies España", "Total Energies"],
+    "categories": ["energy"],
+    "waNumber": "+34678244222",
+    "source": "https://www.totalenergies.es/es/hogares/atencion-al-cliente/contacto",
+    "notes": "Official residential contact page."
   }
 ]

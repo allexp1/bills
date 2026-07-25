@@ -10,7 +10,7 @@ import {
 } from "@bills/pipeline";
 import { resolveLocale, type SupportedLocale } from "@bills/shared";
 import { channel, keys } from "../wiring.js";
-import { mediaStore } from "../media-store.js";
+import { mediaStore, purgeInvoiceMedia } from "../media-store.js";
 import { loadGuardedDecode } from "../decode-store.js";
 import { runBillPipeline } from "../run-bill-pipeline.js";
 
@@ -82,6 +82,12 @@ export async function processBill(payload: { conversationId: string; invoiceId: 
     }
 
     await settleState(conversation.id, "processing_delivered");
+
+    // No-retention policy: the structured extraction is stored (encrypted);
+    // the bill images/PDFs are deleted the moment processing succeeds. Kept
+    // on failure only so QStash retries can re-run; the short-window purge
+    // cron sweeps those up.
+    await purgeInvoiceMedia(payload.invoiceId).catch(() => {});
   } catch (err) {
     console.error(`[process-bill] ${payload.invoiceId} failed:`, err instanceof Error ? err.message.slice(0, 200) : "");
     await settleState(conversation.id, "processing_failed");

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Deutsche Telekom",
+    "aliases": ["Telekom", "Telekom Deutschland", "T-Mobile Deutschland"],
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+4915142227878",
+    "source": "https://www.telekom.de/hilfe/whatsapp",
+    "notes": "Verified business account; digital assistant 24/7, human agents Mon–Fri 07:00–23:00, weekends 08:00–20:00."
+  },
+  {
+    "name": "Vodafone",
+    "aliases": ["Vodafone Deutschland", "Vodafone GmbH"],
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+491721217212",
+    "source": "https://www.vodafone.de/featured/article/whatsapp-kundenservice-texte-vodafone-deine-frage-57788",
+    "notes": "Chatbot TOBi 24/7; human agents daily 07:30–22:00. Not the SMS number 0172 4401212."
+  }
+]

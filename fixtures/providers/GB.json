@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Virgin Media",
+    "aliases": ["Virgin Media O2", "VM"],
+    "categories": ["broadband", "mobile"],
+    "waNumber": "+447305327112",
+    "source": "https://www.virginmedia.com/support/help/contact-us",
+    "notes": "Mon–Fri 07:00–23:00, weekends 08:00–20:00."
+  },
+  {
+    "name": "EDF",
+    "aliases": ["EDF Energy", "EDF Energy UK"],
+    "categories": ["energy"],
+    "waNumber": "+447782569959",
+    "source": "https://www.edfenergy.com/help-support/contact-us",
+    "notes": "General queries and meter readings; listed for residential and SME."
+  }
+]

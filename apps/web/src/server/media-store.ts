@@ -2,6 +2,8 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { del, put } from "@vercel/blob";
+import { and, eq, isNull } from "drizzle-orm";
+import { db, schema } from "@bills/db";
 
 /**
  * Media storage behind a tiny interface. Vercel Blob in prod; a local
@@ -52,4 +54,24 @@ let store: MediaStore | undefined;
 export function mediaStore(): MediaStore {
   store ??= process.env.BLOB_READ_WRITE_TOKEN ? new VercelBlobStore() : new LocalDirStore();
   return store;
+}
+
+/**
+ * No-retention policy: bill images/PDFs exist only long enough to be
+ * analyzed. Called as soon as an invoice's pipeline run succeeds (and by
+ * the short-window purge cron for stragglers from failed runs). Metadata
+ * rows survive with deletedAt set; the ciphertext is gone.
+ */
+export async function purgeInvoiceMedia(invoiceId: string): Promise<void> {
+  const rows = await db()
+    .select()
+    .from(schema.mediaObjects)
+    .where(and(eq(schema.mediaObjects.invoiceId, invoiceId), isNull(schema.mediaObjects.deletedAt)));
+  for (const m of rows) {
+    if (m.storageKey) await mediaStore().delete(m.storageKey).catch(() => {});
+    await db()
+      .update(schema.mediaObjects)
+      .set({ deletedAt: new Date(), storageKey: "" })
+      .where(eq(schema.mediaObjects.id, m.id));
+  }
 }

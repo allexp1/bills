@@ -1,0 +1,18 @@
+[
+  {
+    "name": "EDP",
+    "aliases": ["EDP Comercial"],
+    "categories": ["energy"],
+    "waNumber": "+351911955282",
+    "source": "https://www.edp.pt/particulares/apoio-cliente/whatsapp/",
+    "notes": "Dedicated official WhatsApp help page; self-service via NIF (payment references, e-billing)."
+  },
+  {
+    "name": "Vodafone",
+    "aliases": ["Vodafone Portugal"],
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+351910070707",
+    "source": "https://rockinrio.vodafone.pt/ajuda/chat-tobi.html",
+    "notes": "Chat TOBi digital assistant, 24/7 with agent escalation; confirmed on vodafone.pt help pages."
+  }
+]

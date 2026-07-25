@@ -1,13 +1,11 @@
-import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { getPack, lookupProviderWa } from "@bills/category-packs";
-import { db, encryptEnvelope, encryptJson, schema } from "@bills/db";
+import { db, encryptJson, schema } from "@bills/db";
 import { decodeBill, extractBill, gatherOffers, type BillPage } from "@bills/llm";
 import { applyGuardrails, computeGotchaFacts, mintSummaryToken } from "@bills/pipeline";
-import { parseAmount, ulid, type SupportedLocale } from "@bills/shared";
+import { parseAmount, type SupportedLocale } from "@bills/shared";
 import { keys } from "./wiring.js";
 import { env } from "./env.js";
-import { mediaStore } from "./media-store.js";
 
 export interface PipelineRunResult {
   summaryUrl: string;
@@ -47,20 +45,11 @@ export async function runBillPipeline(args: {
       .values({ customerId, status: "extracting", pageCount: pages.length })
       .returning({ id: schema.invoices.id });
     invoiceId = invoice!.id;
-    // Persist pages encrypted (same posture as the WhatsApp media path).
-    let pageIndex = 1;
-    for (const page of pages) {
-      const ciphertext = Buffer.from(JSON.stringify(encryptEnvelope(keys(), page.data)));
-      const { storageKey } = await mediaStore().put(`media/${invoiceId}/${ulid()}`, ciphertext);
-      await database.insert(schema.mediaObjects).values({
-        invoiceId,
-        storageKey,
-        mimeType: page.mimeType,
-        byteSize: page.data.length,
-        sha256: createHash("sha256").update(page.data).digest("hex"),
-        pageIndex: pageIndex++,
-      });
-    }
+    // No-retention policy: uploaded pages are processed from memory only.
+    // What persists is the structured extraction, encrypted, in the DB —
+    // never the images/PDFs themselves. (The WhatsApp path stores pages
+    // transiently because they arrive over minutes into an async job; it
+    // deletes them right after processing.)
   }
 
   try {

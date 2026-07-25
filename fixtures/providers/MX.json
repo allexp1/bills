@@ -1,0 +1,18 @@
+[
+  {
+    "name": "AT&T",
+    "aliases": ["AT&T México", "ATT México", "ATT Mexico"],
+    "categories": ["mobile"],
+    "waNumber": "+525569329582",
+    "source": "https://www.att.com.mx/atencion-a-clientes.html",
+    "notes": "Chatbot 24h; human agents Mon–Sat 08:00–22:00."
+  },
+  {
+    "name": "izzi",
+    "aliases": ["izzi Telecom", "Cablevisión"],
+    "categories": ["broadband", "mobile"],
+    "waNumber": "+525589003103",
+    "source": "https://ayudaizzi.izzi.mx/hc/es/articles/4737869326490-Seguimiento-a-reportes",
+    "notes": "Bot verifies registered email, account number and postal code before routing to an advisor."
+  }
+]

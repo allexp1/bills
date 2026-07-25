@@ -53,4 +53,16 @@ describe("lookupProviderWa", () => {
     const hit = await lookupProviderWa("Orange Espagne S.A.U.", "ES", "broadband");
     expect(hit?.waNumber).toBe("+34653850085");
   });
+
+  it("shipped directories parse and match across markets", async () => {
+    expect((await lookupProviderWa("Iberdrola Clientes S.A.U.", "ES", "energy"))?.waNumber).toBe("+34601225235");
+    expect((await lookupProviderWa("EDP Comercial", "PT", "energy"))?.waNumber).toBe("+351911955282");
+    expect((await lookupProviderWa("Telekom Deutschland GmbH", "DE", "broadband"))?.waNumber).toBe("+4915142227878");
+    expect((await lookupProviderWa("Telefônica Brasil S.A. (Vivo)", "BR", "mobile"))?.waNumber).toBe("+5511999151515");
+    expect((await lookupProviderWa("Oi S.A.", "BR", "broadband"))?.waNumber).toBe("+553131313131");
+    expect((await lookupProviderWa("AT&T Comunicaciones Digitales", "MX", "mobile"))?.waNumber).toBe("+525569329582");
+    expect((await lookupProviderWa("EDF Energy Customers Ltd", "GB", "energy"))?.waNumber).toBe("+447782569959");
+    // FR intentionally has no file — every lookup must be null, never a guess.
+    expect(await lookupProviderWa("Orange France", "FR", "mobile")).toBeNull();
+  });
 });
