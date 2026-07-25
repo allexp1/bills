@@ -33,8 +33,9 @@ export default function Home() {
       <section className="card">
         <p style={{ margin: 0 }}>
           Your bill is sensitive. We never store your bill images or PDFs — they're analyzed and immediately
-          discarded; only the structured summary is kept, encrypted at rest. Your summary link is private,
-          expires in 7 days, and nothing is indexed or shared.
+          discarded. The decoded summary is kept encrypted for 7 days so your private link works, then deleted
+          too. What we keep after that is anonymous statistics only (category, provider, amounts) with no link
+          of any kind back to you. Nothing is indexed or shared.
         </p>
       </section>
 

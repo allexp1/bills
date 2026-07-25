@@ -39,5 +39,22 @@ export async function GET(req: NextRequest) {
       .where(eq(schema.mediaObjects.id, m.id));
     purged++;
   }
-  return NextResponse.json({ ok: true, purged, retentionDays: RETENTION_DAYS });
+
+  // "Private for a week" means gone after a week: once the summary token has
+  // expired, delete the encrypted decode + extraction rows too. What remains
+  // is the invoice shell (status/dates) and the anonymous bill_stats row.
+  const expired = await db()
+    .selectDistinct({ invoiceId: schema.decodes.invoiceId })
+    .from(schema.decodes)
+    .innerJoin(schema.summaryTokens, eq(schema.summaryTokens.invoiceId, schema.decodes.invoiceId))
+    .where(lt(schema.summaryTokens.expiresAt, new Date()))
+    .limit(500);
+  let expiredPurged = 0;
+  for (const row of expired) {
+    await db().delete(schema.decodes).where(eq(schema.decodes.invoiceId, row.invoiceId));
+    await db().delete(schema.extractions).where(eq(schema.extractions.invoiceId, row.invoiceId));
+    expiredPurged++;
+  }
+
+  return NextResponse.json({ ok: true, purged, expiredPurged, retentionDays: RETENTION_DAYS });
 }

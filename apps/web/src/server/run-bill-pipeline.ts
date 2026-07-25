@@ -208,6 +208,38 @@ export async function runBillPipeline(args: {
       .set({ status: "delivered", summaryTokenId: tokenRow!.id })
       .where(eq(schema.invoices.id, invoiceId));
 
+    // Anonymous stats row — whitelist only, no linkage to customer/invoice,
+    // month-level time. This is what legitimately survives the 7-day
+    // deletion of the decoded data. Fail-soft (migration 0002).
+    await database
+      .insert(schema.billStats)
+      .values({
+        billMonth: (extraction.common.billingPeriodEnd ?? extraction.common.issueDate ?? "").slice(0, 7) || null,
+        category: extraction.category,
+        country: extraction.common.country,
+        currency: extraction.common.currency,
+        providerName: extraction.common.providerName,
+        totalMinor: extraction.common.totalAmount
+          ? parseAmount(extraction.common.totalAmount, extraction.common.currency ?? "EUR")
+          : null,
+        savingsCount: guarded.savings.length,
+        savingsTotalMinor: guarded.savings.reduce<number | null>(
+          (acc, s) => (s.amountMinor === null ? acc : (acc ?? 0) + s.amountMinor),
+          null,
+        ),
+        verdictVerified: report.claims.filter((c) => c.verdict === "verified").length,
+        verdictComputed: report.claims.filter((c) => c.verdict === "computed").length,
+        verdictFlagged: report.claims.filter((c) => c.verdict === "flagged").length,
+        verdictDropped: report.claims.filter((c) => c.verdict === "dropped").length,
+        offersConsidered: offers.length,
+        hadPitch: guarded.pitch !== undefined,
+        locale,
+        createdMonth: new Date().toISOString().slice(0, 7),
+      })
+      .catch((err: unknown) => {
+        console.warn("[pipeline] stats write failed (migration 0002 applied?):", err instanceof Error ? err.message.slice(0, 120) : "");
+      });
+
     return {
       summaryUrl: `${env.summaryBaseUrl}/s/${minted.token}`,
       category: extraction.category,

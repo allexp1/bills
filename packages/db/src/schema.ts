@@ -251,3 +251,32 @@ export const categoryPackRegistry = pgTable("category_pack_registry", {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+/**
+ * ANONYMOUS usage statistics — deliberately no foreign keys, no customer or
+ * invoice linkage, no account data, and month-level time resolution only.
+ * Rows here are irreversibly unlinkable to a person (true anonymization, not
+ * pseudonymization), which is what lets them outlive the 7-day deletion of
+ * the decoded bill data. Never add a linking column to this table.
+ */
+export const billStats = pgTable("bill_stats", {
+  id: id(),
+  /** Billing month YYYY-MM (from the bill's own dates). */
+  billMonth: text("bill_month"),
+  category: text("category"),
+  country: text("country"),
+  currency: text("currency"),
+  providerName: text("provider_name"),
+  totalMinor: integer("total_minor"),
+  savingsCount: integer("savings_count").notNull().default(0),
+  savingsTotalMinor: integer("savings_total_minor"),
+  verdictVerified: integer("verdict_verified").notNull().default(0),
+  verdictComputed: integer("verdict_computed").notNull().default(0),
+  verdictFlagged: integer("verdict_flagged").notNull().default(0),
+  verdictDropped: integer("verdict_dropped").notNull().default(0),
+  offersConsidered: integer("offers_considered").notNull().default(0),
+  hadPitch: boolean("had_pitch").notNull().default(false),
+  locale: text("locale"),
+  /** Month the analysis ran, YYYY-MM — coarse on purpose. */
+  createdMonth: text("created_month").notNull(),
+});
