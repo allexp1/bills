@@ -46,6 +46,10 @@ describe("wire schema", () => {
         mobile: {
           planName: "Plan M",
           baseFee: "45,00",
+          dataAllowanceGb: "800 GB",
+          dataUsedGb: "",
+          minutesIncluded: "",
+          minutesUsed: "",
           addOns: [{ label: "SMS Premium", amount: "9,99", recurring: "true" }],
           roamingCharges: "",
           outOfBundleCharges: "",

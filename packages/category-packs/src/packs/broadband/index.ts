@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { CategoryPack, SavingsLever } from "../../pack.js";
 import { fieldMinor, savingVsOffer, verdictAgainst } from "../../validate-helpers.js";
+import { resolvePath } from "../../paths.js";
 
 export const BroadbandFieldsSchema = z.object({
   planName: z.string().nullable(),
@@ -82,9 +83,49 @@ const switchProvider: SavingsLever<BroadbandFields> = {
   },
 };
 
+const dropEquipmentFees: SavingsLever<BroadbandFields> = {
+  id: "broadband_drop_equipment",
+  kind: "optimize_current",
+  title: {
+    en: "Drop equipment rental fees",
+    es: "Eliminar el alquiler de equipos",
+    fr: "Supprimer la location d'équipement",
+    pt: "Eliminar o aluguer de equipamento",
+    de: "Gerätemiete streichen",
+  },
+  promptFragment:
+    "If the bill carries router/set-top rental fees, propose returning the equipment (own router) or asking for the fee to be waived. The saving is the SUM of the cited equipmentFees amount paths — cite each individually.",
+  applies: (f) => (f.equipmentFees.length > 0 ? f.equipmentFees.some((e) => e.amount !== null) : null),
+  validate: (claim, fields) => {
+    let sum = 0;
+    let cited = 0;
+    for (const path of claim.basis.extractionPaths) {
+      const local = path.includes("broadband.") ? path.slice(path.indexOf("broadband.") + "broadband.".length) : path;
+      const minor = fieldMinor(resolvePath(fields, local), claim.currency);
+      if (minor !== null) {
+        sum += minor;
+        cited++;
+      }
+    }
+    if (cited === 0) return { verdict: "dropped", reason: "no cited equipment fee amounts resolved" };
+    return verdictAgainst(claim, sum);
+  },
+  nextStep: (_f, common, locale) => {
+    const provider = common.providerName ?? "";
+    const steps: Record<string, string> = {
+      en: `Ask ${provider} whether the rental fee can be waived — or check if a compatible own router is allowed and return theirs.`,
+      es: `Pregunta a ${provider} si pueden quitar el alquiler — o comprueba si admiten router propio y devuelve el suyo.`,
+      fr: `Demandez à ${provider} si la location peut être supprimée — ou vérifiez si un routeur personnel compatible est accepté.`,
+      pt: `Pergunte à ${provider} se a mensalidade do equipamento pode ser retirada — ou verifique se aceitam router próprio.`,
+      de: `Fragen Sie ${provider}, ob die Miete entfallen kann — oder prüfen Sie, ob ein eigener Router erlaubt ist.`,
+    };
+    return steps[locale] ?? steps.en!;
+  },
+};
+
 export const broadbandPack: CategoryPack<BroadbandFields> = {
   id: "broadband",
-  version: "0.1.0",
+  version: "0.2.0",
   displayName: { en: "Broadband", es: "Internet", fr: "Internet", pt: "Internet", de: "Internet" },
   extractionSchema: BroadbandFieldsSchema,
   extractionHints: {
@@ -120,5 +161,5 @@ export const broadbandPack: CategoryPack<BroadbandFields> = {
       },
     ],
   },
-  savingsLevers: [renegotiate, switchProvider],
+  savingsLevers: [renegotiate, dropEquipmentFees, switchProvider],
 };

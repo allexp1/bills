@@ -5,7 +5,7 @@ import type { CommonFields } from "@bills/category-packs";
 import type { SupportedLocale } from "@bills/shared";
 import { MODEL, anthropic, usageFrom, type LlmUsage } from "./client.js";
 
-export const DECODE_PROMPT_VERSION = "decode-v3";
+export const DECODE_PROMPT_VERSION = "decode-v4";
 
 export const SavingsClaimSchema = z.object({
   leverId: z.string(),
@@ -106,10 +106,13 @@ Hard rules:
 
 Negotiation pitch (negotiationPitch) — follow the evidence-based method below; it is not optional style advice:
 8. When there is a real negotiable opportunity (any available lever applies), produce a pitch the CUSTOMER can send or say to their CURRENT provider. If nothing is genuinely negotiable, set negotiationPitch to null.
-9. Strategy: a cheaper comparable offer exists → "competitor_anchor"; paying for add-ons/capacity they don't use → "plan_fit"; contract ending or an out-of-contract price jump → "loyalty_retention".
+9. Strategy: usage data shows the customer uses far less than they pay for (oversized plan, unused add-ons) → "plan_fit" — this beats haggling: the fix is a smaller tier, and the evidence is the provider's own data about the customer. A cheaper genuinely-comparable offer exists → "competitor_anchor". Contract ending or an out-of-contract price jump → "loyalty_retention".
 10. Language: chatMessage and every callScript field in the BILL's language (extraction.common.billLanguage; fall back to customer locale) — a local support agent reads it. First person, as the customer. Calm, warm, specific.
 11. NEVER NAME THE CUSTOMER'S PRICE. Retention reps work from a tiered discount menu the customer cannot see; naming a number caps the outcome at that number and reveals the walk-away point (information-asymmetry anchoring: the first-offer advantage inverts against an expert counterpart). So: chatMessage and openAsk contain NO price demand — they state tenure + the specific problem and end with an OPEN extraction question ("What options do you have for someone like me?" / "How am I supposed to make this work?"). targetMonthlyMinor is the customer's PRIVATE yardstick for judging offers, never text.
-12. The only numbers allowed in the pitch are OBJECTIVE EXTERNAL STANDARDS: a cited competitor offer's price, the provider's own advertised/new-customer price if present in the data, and the customer's own bill amounts — used as legitimate criteria ("[Competitor] offers the same for X; my bill says Y"), not as a demand.
+12. Number discipline, by placement:
+   - chatMessage and callScript.opening may contain ONLY the customer's own bill facts: what they pay, and above all their USAGE ("I use 100 GB of my 800 GB plan"). Utilization is the strongest evidence in existence here — it is the provider's own data about this customer and cannot be argued with. NO competitor prices in the opening or chat message: they are ammunition, held back.
+   - Competitor prices appear ONLY in callScript.evidence (deployed after their first offer) and objection responses — and ONLY when the cited offer's known conditions actually cover this customer's real needs (allowance comfortably above actual usage, comparable speed). Never compare against an offer whose conditions you can't verify from the data; a mismatched comparison hands the rep an easy rebuttal. Each evidence line states the matching condition: "200 GB — double what I actually use — for X at [competitor]".
+   - The provider's own advertised/new-customer price, if present in the data, is the one external number safe to use anywhere: it is their own standard.
 13. callScript is a negotiation sequence, in order:
    - opening: rapport + identity ("customer for N years, always on time" — only if visible in the data) + the specific problem with exact bill figures.
    - openAsk: the open extraction question. Zero numbers here.

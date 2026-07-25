@@ -49,6 +49,10 @@ describe("mergedExtractionSchema", () => {
           planName: "Fusión",
           baseFee: "45,00",
           addOns: [{ label: "Premium SMS", amount: "9,99", recurring: true }],
+          dataAllowanceGb: null,
+          dataUsedGb: null,
+          minutesIncluded: null,
+          minutesUsed: null,
           roamingCharges: null,
           outOfBundleCharges: null,
           lines: [],
@@ -83,6 +87,10 @@ describe("mobile remove_addons validation", () => {
       { label: "Premium SMS", amount: "9,99", recurring: true },
       { label: "Cloud 100GB", amount: "2,99", recurring: true },
     ],
+    dataAllowanceGb: "800 GB",
+    dataUsedGb: "102,4 GB",
+    minutesIncluded: null,
+    minutesUsed: null,
     roamingCharges: null,
     outOfBundleCharges: null,
     lines: [],
@@ -202,6 +210,100 @@ describe("energy pack", () => {
       fields,
       common({ totalAmount: "62,90" }),
       [{ id: "of-2", provider: "X", name: "Y", estMonthlyCostMinor: 7000, currency: "EUR", country: "ES" }],
+    );
+    expect(v.verdict).toBe("dropped");
+  });
+});
+
+describe("mobile usage right-sizing", () => {
+  const fields: MobileFields = {
+    planName: "Plan XL",
+    baseFee: "45,00",
+    dataAllowanceGb: "800 GB",
+    dataUsedGb: "102,4 GB",
+    minutesIncluded: "unlimited",
+    minutesUsed: null,
+    addOns: [],
+    roamingCharges: null,
+    outOfBundleCharges: null,
+    lines: [],
+    contractEndDate: null,
+  };
+
+  it("detects an oversized plan from printed usage, stays undecided without data", () => {
+    const check = mobilePack.decodeHints.gotchaChecks.find((g) => g.id === "oversized_plan")!;
+    expect(check.detect!(fields, common())).toBe(true); // 102.4 / 800 ≈ 13%
+    expect(check.detect!({ ...fields, dataUsedGb: "700 GB" }, common())).toBe(false);
+    expect(check.detect!({ ...fields, dataUsedGb: null }, common())).toBeNull();
+    expect(check.detect!({ ...fields, dataAllowanceGb: "unlimited" }, common())).toBeNull();
+  });
+
+  const lever = mobilePack.savingsLevers.find((l) => l.id === "mobile_lower_tier")!;
+
+  it("applies only under low utilization", () => {
+    expect(lever.applies!(fields, common())).toBe(true);
+    expect(lever.applies!({ ...fields, dataUsedGb: "700 GB" }, common())).toBe(false);
+    expect(lever.applies!({ ...fields, dataAllowanceGb: null }, common())).toBeNull();
+  });
+
+  it("stays qualitative without a priced smaller tier, verifies against one", () => {
+    const noOffer = lever.validate(claim({ leverId: "mobile_lower_tier", estimatedSavingMinor: 1000 }), fields, common());
+    expect(noOffer.verdict).toBe("flagged");
+
+    const offers = [{ id: "o1", provider: "Movistar", name: "Plan S 200GB", estMonthlyCostMinor: 2999, currency: "EUR", country: "ES" }];
+    const v = lever.validate(
+      claim({
+        leverId: "mobile_lower_tier",
+        estimatedSavingMinor: 1501,
+        basis: { extractionPaths: ["category_fields.mobile.baseFee"], comparisonOfferId: "o1" },
+      }),
+      fields,
+      common(),
+      offers,
+    );
+    expect(v.verdict).toBe("verified"); // 45,00 − 29,99 = 15,01
+  });
+
+  it("nextStep cites the exact printed usage and warns against naming a price", () => {
+    const step = lever.nextStep(fields, common(), "en");
+    expect(step).toContain("102,4");
+    expect(step).toContain("800 GB");
+  });
+});
+
+describe("broadband drop_equipment lever", () => {
+  const lever = broadbandPack.savingsLevers.find((l) => l.id === "broadband_drop_equipment")!;
+  const fields: BroadbandFields = {
+    planName: "Fibra 600",
+    monthlyPrice: "54,90",
+    contractEndDate: null,
+    inContractPrice: null,
+    outOfContractPrice: null,
+    promoPrice: null,
+    promoEndDate: null,
+    speedTier: "600 Mbps",
+    equipmentFees: [{ label: "Router", amount: "6,00" }],
+  };
+
+  it("applies when fees exist and verifies the summed cited fees", () => {
+    expect(lever.applies!(fields, common())).toBe(true);
+    const v = lever.validate(
+      claim({
+        leverId: "broadband_drop_equipment",
+        estimatedSavingMinor: 600,
+        basis: { extractionPaths: ["category_fields.broadband.equipmentFees.0.amount"] },
+      }),
+      fields,
+      common(),
+    );
+    expect(v).toMatchObject({ verdict: "verified" });
+  });
+
+  it("drops when no cited fee resolves", () => {
+    const v = lever.validate(
+      claim({ leverId: "broadband_drop_equipment", estimatedSavingMinor: 600, basis: { extractionPaths: ["category_fields.broadband.equipmentFees.9.amount"] } }),
+      fields,
+      common(),
     );
     expect(v.verdict).toBe("dropped");
   });

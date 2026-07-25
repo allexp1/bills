@@ -103,6 +103,13 @@ function summarizeCurrent(category: string, fields: unknown, common: CommonField
   ];
   if (category === "mobile") {
     lines.push(`Plan: ${f.planName ?? "unknown"}, base fee: ${f.baseFee ?? "unknown"}`);
+    if (f.dataUsedGb || f.dataAllowanceGb) {
+      // Actual usage matters more than the current allowance: a right-sized
+      // cheaper plan (~1.5-2x real usage) beats a like-for-like giant one.
+      lines.push(
+        `Data: allowance ${f.dataAllowanceGb ?? "unknown"}, actually used this cycle ${f.dataUsedGb ?? "unknown"} — prefer offers sized to real usage with headroom, not to the current allowance.`,
+      );
+    }
   } else if (category === "broadband") {
     lines.push(`Plan: ${f.planName ?? "unknown"}, speed: ${f.speedTier ?? "unknown"}, monthly: ${f.monthlyPrice ?? "unknown"}, out-of-contract: ${f.outOfContractPrice ?? "n/a"}`);
   } else if (category === "energy") {

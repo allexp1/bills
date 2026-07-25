@@ -37,6 +37,10 @@ const extraction: MergedExtraction = {
         { label: "Premium SMS", amount: "9,99", recurring: true },
         { label: "Cloud 100GB", amount: "2,99", recurring: true },
       ],
+      dataAllowanceGb: "800 GB",
+      dataUsedGb: "102,4 GB",
+      minutesIncluded: null,
+      minutesUsed: null,
       roamingCharges: null,
       outOfBundleCharges: null,
       lines: [],
@@ -181,18 +185,25 @@ describe("guarded pitch", () => {
     expect(report.removedSentences.some((r) => r.where === "pitch:chatMessage")).toBe(true);
   });
 
-  it("accepts a target matching a cited comparison offer", () => {
+  it("accepts an offer-grounded target, but competitor prices are ammunition: banned from the chat message, kept in evidence", () => {
     const offers = [
       { id: "web-mobile-0", provider: "Rival", name: "Plan X", estMonthlyCostMinor: 2999, currency: "EUR", country: "ES", link: "https://rival.example" },
     ];
     const cited = structuredClone(basePitch);
     cited.strategy = "competitor_anchor";
-    cited.chatMessage = "Hola, soy cliente de Vodafone. Rival ofrece Plan X por 29,99 € al mes. ¿Podéis igualarlo?";
+    cited.chatMessage =
+      "Hola, soy cliente de Vodafone. Rival ofrece Plan X por 29,99 € al mes. Uso 102,4 GB de mis 800 GB. ¿Qué opciones tenéis para alguien como yo?";
+    cited.callScript.evidence = ["Rival: Plan X con datos de sobra para mi uso por 29,99 € al mes."];
     cited.targetMonthlyMinor = 2999;
     cited.basis.comparisonOfferIds = ["web-mobile-0"];
-    const { guarded } = run(withPitch(cited), offers);
+    const { guarded, report } = run(withPitch(cited), offers);
     expect(guarded.pitch!.targetMonthlyMinor).toBe(2999);
-    expect(guarded.pitch!.chatMessage).toContain("29,99");
+    // The competitor sentence is stripped from the opening message…
+    expect(guarded.pitch!.chatMessage).not.toContain("29,99");
+    expect(guarded.pitch!.chatMessage).toContain("opciones");
+    expect(report.removedSentences.some((r) => r.where === "pitch:chatMessage" && r.sentence.includes("29,99"))).toBe(true);
+    // …but survives where it belongs: mid-call evidence, deployed after their first offer.
+    expect(guarded.pitch!.callScript.evidence[0]).toContain("29,99");
   });
 
   it("redacts restricted data that leaks into the pitch", () => {

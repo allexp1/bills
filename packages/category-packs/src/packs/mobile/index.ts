@@ -6,17 +6,44 @@ import { resolvePath } from "../../paths.js";
 export const MobileFieldsSchema = z.object({
   planName: z.string().nullable(),
   baseFee: z.string().nullable(),
+  /** Plan data allowance as printed ("800 GB", "unlimited") — usage sections are gold for right-sizing. */
+  dataAllowanceGb: z.string().nullable(),
+  /** Data actually used this cycle as printed ("102,4 GB"). */
+  dataUsedGb: z.string().nullable(),
+  minutesIncluded: z.string().nullable(),
+  minutesUsed: z.string().nullable(),
   addOns: z.array(
     z.object({ label: z.string().nullable(), amount: z.string().nullable(), recurring: z.boolean().nullable() }),
   ),
   roamingCharges: z.string().nullable(),
   outOfBundleCharges: z.string().nullable(),
   lines: z.array(
-    z.object({ msisdnMasked: z.string().nullable(), planName: z.string().nullable(), amount: z.string().nullable() }),
+    z.object({
+      msisdnMasked: z.string().nullable(),
+      planName: z.string().nullable(),
+      amount: z.string().nullable(),
+      dataUsedGb: z.string().nullable(),
+    }),
   ),
   contractEndDate: z.string().nullable(),
 });
 export type MobileFields = z.infer<typeof MobileFieldsSchema>;
+
+/** Parse a printed data quantity: "102,4 GB" → 102.4; unlimited → Infinity; unparseable → null. */
+export function parseGb(printed: string | null): number | null {
+  if (!printed) return null;
+  if (/unlim|ilimitad|illimit|unbegrenzt|sin l[ií]mite/i.test(printed)) return Infinity;
+  const m = printed.replace(",", ".").match(/\d+(?:\.\d+)?/);
+  return m ? Number.parseFloat(m[0]) : null;
+}
+
+/** used/allowance when both are known and allowance is finite; null otherwise. */
+function utilization(f: MobileFields): number | null {
+  const used = parseGb(f.dataUsedGb);
+  const allowance = parseGb(f.dataAllowanceGb);
+  if (used === null || allowance === null || !Number.isFinite(allowance) || allowance <= 0) return null;
+  return used / allowance;
+}
 
 const removeAddons: SavingsLever<MobileFields> = {
   id: "mobile_remove_addons",
@@ -62,6 +89,44 @@ const removeAddons: SavingsLever<MobileFields> = {
   },
 };
 
+const lowerTier: SavingsLever<MobileFields> = {
+  id: "mobile_lower_tier",
+  kind: "optimize_current",
+  title: {
+    en: "Move down to a plan that fits your real usage",
+    es: "Bajar a un plan acorde a tu uso real",
+    fr: "Passer à un forfait adapté à votre usage réel",
+    pt: "Descer para um plano ajustado ao seu uso real",
+    de: "In einen Tarif wechseln, der zur echten Nutzung passt",
+  },
+  promptFragment:
+    "When usage data shows the customer uses far less than the plan allowance (e.g. 100 GB used of 800 GB), propose moving DOWN a tier with the CURRENT provider: a plan covering ~1.5-2x actual usage. This is the provider's own data about the customer — the strongest possible evidence; cite the dataUsedGb and dataAllowanceGb paths. Only attach a number if a concrete cheaper plan price exists in the data (a comparison offer with adequate allowance, or a smaller tier printed on the bill); otherwise describe the move qualitatively with the exact GB figures and no invented price.",
+  applies: (f) => {
+    const u = utilization(f);
+    return u === null ? null : u < 0.5;
+  },
+  validate: (claim, fields, common, comparison) => {
+    if (!claim.basis.comparisonOfferId) {
+      return { verdict: "flagged", reason: "no priced smaller tier in data — qualitative only" };
+    }
+    const current = fieldMinor(fields.baseFee ?? common.totalAmount, claim.currency);
+    return verdictAgainst(claim, savingVsOffer(claim, current, comparison));
+  },
+  nextStep: (f, common, locale) => {
+    const provider = common.providerName ?? "";
+    const used = f.dataUsedGb ?? "?";
+    const allowance = f.dataAllowanceGb ?? "?";
+    const steps: Record<string, string> = {
+      en: `You used ${used} of your ${allowance} allowance. Ask ${provider} which smaller plans cover your real usage — don't name a price, let them list the tiers.`,
+      es: `Usaste ${used} de tu bono de ${allowance}. Pregunta a ${provider} qué planes inferiores cubren tu uso real — no digas un precio, deja que enumeren los tramos.`,
+      fr: `Vous avez utilisé ${used} sur ${allowance}. Demandez à ${provider} quels forfaits inférieurs couvrent votre usage réel — sans annoncer de prix, laissez-les lister les paliers.`,
+      pt: `Usou ${used} do seu plafond de ${allowance}. Pergunte à ${provider} que planos inferiores cobrem o seu uso real — não diga um preço, deixe-os listar os escalões.`,
+      de: `Sie haben ${used} von ${allowance} verbraucht. Fragen Sie ${provider}, welche kleineren Tarife Ihre echte Nutzung abdecken — nennen Sie keinen Preis, lassen Sie sich die Stufen auflisten.`,
+    };
+    return steps[locale] ?? steps.en!;
+  },
+};
+
 const rightsizePlan: SavingsLever<MobileFields> = {
   id: "mobile_rightsize_plan",
   kind: "switch_provider",
@@ -73,7 +138,7 @@ const rightsizePlan: SavingsLever<MobileFields> = {
     de: "Zu einem günstigeren Tarif wechseln",
   },
   promptFragment:
-    "If a comparison plan beats the current base fee, propose it citing the offer id. Without comparison data, describe the lever qualitatively — no number.",
+    "If a comparison plan beats the current base fee, propose it citing the offer id — but ONLY when the offer's known conditions cover the customer's actual usage (allowance comfortably above dataUsedGb). Without comparison data, describe the lever qualitatively — no number.",
   validate: (claim, fields, common, comparison) => {
     const current = fieldMinor(fields.baseFee ?? common.totalAmount, claim.currency);
     return verdictAgainst(claim, savingVsOffer(claim, current, comparison));
@@ -92,7 +157,7 @@ const rightsizePlan: SavingsLever<MobileFields> = {
 
 export const mobilePack: CategoryPack<MobileFields> = {
   id: "mobile",
-  version: "0.1.0",
+  version: "0.2.0",
   displayName: { en: "Mobile", es: "Móvil", fr: "Mobile", pt: "Telemóvel", de: "Mobilfunk" },
   extractionSchema: MobileFieldsSchema,
   extractionHints: {
@@ -100,6 +165,11 @@ export const mobilePack: CategoryPack<MobileFields> = {
     lines: "Multi-line/family bills: capture each line's masked number, plan and amount separately.",
     roamingCharges: "Charges incurred abroad, often a separate section.",
     "lines.msisdnMasked": "Mask all but the last 3 digits of any phone number you transcribe.",
+    dataAllowanceGb:
+      "The plan's data allowance as printed. Usage sections are often labelled 'consumo/uso de datos', 'consommation', 'Datenverbrauch', 'utilização'. Write 'unlimited' if that's what the bill says.",
+    dataUsedGb: "Data actually consumed this billing cycle, exactly as printed (e.g. '102,4 GB').",
+    minutesIncluded: "Included call minutes as printed ('unlimited' allowed).",
+    minutesUsed: "Minutes actually used this cycle, if the bill shows them.",
   },
   decodeHints: {
     lineItemGlossary:
@@ -120,7 +190,16 @@ export const mobilePack: CategoryPack<MobileFields> = {
         promptFragment: "If out-of-bundle charges exist, the plan allowance may be too small — a recurring pattern means the plan is mis-sized.",
         detect: (f) => (f.outOfBundleCharges !== null ? true : null),
       },
+      {
+        id: "oversized_plan",
+        promptFragment:
+          "The customer uses a small fraction of the plan's data allowance — they're paying for capacity they never touch. State the exact used-vs-allowance figures from the bill; this is the provider's own data and the strongest possible saving evidence.",
+        detect: (f) => {
+          const u = utilization(f);
+          return u === null ? null : u < 0.35;
+        },
+      },
     ],
   },
-  savingsLevers: [removeAddons, rightsizePlan],
+  savingsLevers: [removeAddons, lowerTier, rightsizePlan],
 };

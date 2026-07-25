@@ -236,13 +236,18 @@ export function applyGuardrails(args: {
 
   // Numeric sweep over all prose: every currency amount must be derivable
   // from extraction data (incl. pairwise sums/diffs) or an accepted saving.
-  const derivable = derivableSet(extractionAmountSet(extraction, currency), [
+  const extractionAmounts = extractionAmountSet(extraction, currency);
+  const derivable = derivableSet(extractionAmounts, [
     ...acceptedAmounts,
     ...offers.map((o) => o.estMonthlyCostMinor),
   ]);
+  // The pitch's opening/chat message may cite only the customer's OWN facts —
+  // competitor prices are held back as mid-call evidence (they'd also leak
+  // a comparison the rep can rebut if conditions don't match).
+  const derivableOwnFacts = derivableSet(extractionAmounts, acceptedAmounts);
 
   const guardedPitch = decode.negotiationPitch
-    ? guardPitch(decode.negotiationPitch, derivable, offers, currency, report)
+    ? guardPitch(decode.negotiationPitch, { full: derivable, ownFacts: derivableOwnFacts }, offers, currency, report)
     : null;
 
   const guarded: GuardedDecode = {
@@ -272,15 +277,18 @@ export function applyGuardrails(args: {
  */
 function guardPitch(
   pitch: NegotiationPitch,
-  derivable: Set<number>,
+  sets: { full: Set<number>; ownFacts: Set<number> },
   offers: ComparisonOffer[],
   currency: string,
   report: GuardrailReport,
 ): GuardedPitch | null {
-  const clean = (text: string, where: string): string =>
-    redactRestrictedData(sweepText(text, derivable, currency, where, report)).text.trim();
+  const cleanWith = (set: Set<number>) => (text: string, where: string): string =>
+    redactRestrictedData(sweepText(text, set, currency, where, report)).text.trim();
+  const clean = cleanWith(sets.full);
+  // Opening moves carry only the customer's own facts — no competitor prices.
+  const cleanOwn = cleanWith(sets.ownFacts);
 
-  const chatMessage = clean(pitch.chatMessage, "pitch:chatMessage");
+  const chatMessage = cleanOwn(pitch.chatMessage, "pitch:chatMessage");
   if (!chatMessage) {
     report.removedSentences.push({ where: "pitch", sentence: "[pitch dropped: chat message fully removed]" });
     return null;
@@ -294,8 +302,8 @@ function guardPitch(
     const t = target;
     const grounded =
       citedOffers.some((o) => withinTolerance(t, o.estMonthlyCostMinor, currency)) ||
-      derivable.has(t) ||
-      [...derivable].some((v) => withinTolerance(t, v, currency));
+      sets.full.has(t) ||
+      [...sets.full].some((v) => withinTolerance(t, v, currency));
     if (!grounded) target = null;
   }
 
@@ -308,7 +316,7 @@ function guardPitch(
     strategy: pitch.strategy,
     chatMessage,
     callScript: {
-      opening: clean(pitch.callScript.opening, "pitch:opening"),
+      opening: cleanOwn(pitch.callScript.opening, "pitch:opening"),
       openAsk,
       onFirstOffer: clean(pitch.callScript.onFirstOffer, "pitch:onFirstOffer"),
       pushHarder: pitch.callScript.pushHarder.map((p, i) => clean(p, `pitch:pushHarder:${i}`)).filter((p) => p.length > 0),
