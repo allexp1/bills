@@ -1,4 +1,5 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { del, put } from "@vercel/blob";
 
@@ -30,7 +31,9 @@ class VercelBlobStore implements MediaStore {
 }
 
 class LocalDirStore implements MediaStore {
-  constructor(private readonly dir = path.resolve(process.cwd(), ".blob")) {}
+  // Serverless filesystems are read-only outside the temp dir; this fallback
+  // is ephemeral by design — real persistence comes from Vercel Blob.
+  constructor(private readonly dir = path.join(os.tmpdir(), "bills-blob")) {}
   async put(key: string, data: Buffer) {
     const file = path.join(this.dir, key.replaceAll("/", "_"));
     await mkdir(this.dir, { recursive: true });
