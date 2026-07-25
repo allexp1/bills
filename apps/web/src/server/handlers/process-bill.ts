@@ -79,6 +79,7 @@ export async function processBill(payload: { conversationId: string; invoiceId: 
       await channel().sendText(conversation.peerWaId, buildSummaryMessage(loaded.guarded, locale, result.summaryUrl));
       const { body, buttons } = buildFollowUpButtons(payload.invoiceId, locale);
       await channel().sendButtons(conversation.peerWaId, body, buttons);
+      await maybeAskRetentionConsent(conversation.customerId, conversation.peerWaId, locale);
     }
 
     await settleState(conversation.id, "processing_delivered");
@@ -93,6 +94,26 @@ export async function processBill(payload: { conversationId: string; invoiceId: 
     await settleState(conversation.id, "processing_failed");
     await channel().sendText(conversation.peerWaId, t(locale, "unreadable"));
     throw err; // invoice status already set by the pipeline; QStash retries transient failures
+  }
+}
+
+/** One-time opt-in ask: keep decoded data past 7 days for month-to-month comparison. */
+async function maybeAskRetentionConsent(customerId: string | null, to: string, locale: SupportedLocale): Promise<void> {
+  if (!customerId) return;
+  try {
+    const [customer] = await db().select().from(schema.customers).where(eq(schema.customers.id, customerId)).limit(1);
+    if (!customer || customer.retentionPromptedAt) return;
+    await channel().sendButtons(to, t(locale, "retainAsk"), [
+      { id: "retain:yes", title: t(locale, "retainYesBtn") },
+      { id: "retain:no", title: t(locale, "retainNoBtn") },
+    ]);
+    await db()
+      .update(schema.customers)
+      .set({ retentionPromptedAt: new Date() })
+      .where(eq(schema.customers.id, customerId));
+  } catch (err) {
+    // Pre-migration-0003 databases: skip quietly.
+    console.warn("[process-bill] retention prompt skipped:", err instanceof Error ? err.message.slice(0, 120) : "");
   }
 }
 

@@ -47,6 +47,15 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
           </select>
         </label>
       </p>
+      <p style={{ fontSize: "0.88rem" }}>
+        <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
+          <input type="checkbox" name="retain" style={{ marginTop: 3 }} />
+          <span>
+            Keep my decoded bill data (encrypted — never the images) so my future bills can be compared
+            month to month. Unticked, everything is deleted in 7 days. You can delete it all at any time.
+          </span>
+        </label>
+      </p>
       {withSecret && (
         <p>
           <input type="password" name="secret" placeholder="Access secret" required autoComplete="off" />

@@ -41,19 +41,32 @@ export async function GET(req: NextRequest) {
   }
 
   // "Private for a week" means gone after a week: once the summary token has
-  // expired, delete the encrypted decode + extraction rows too. What remains
-  // is the invoice shell (status/dates) and the anonymous bill_stats row.
-  const expired = await db()
-    .selectDistinct({ invoiceId: schema.decodes.invoiceId })
-    .from(schema.decodes)
-    .innerJoin(schema.summaryTokens, eq(schema.summaryTokens.invoiceId, schema.decodes.invoiceId))
-    .where(lt(schema.summaryTokens.expiresAt, new Date()))
-    .limit(500);
+  // expired, delete the encrypted decode + extraction rows too — UNLESS the
+  // customer opted in to retention (month-to-month comparison). What always
+  // remains is the invoice shell (status/dates) and the anonymous bill_stats.
   let expiredPurged = 0;
-  for (const row of expired) {
-    await db().delete(schema.decodes).where(eq(schema.decodes.invoiceId, row.invoiceId));
-    await db().delete(schema.extractions).where(eq(schema.extractions.invoiceId, row.invoiceId));
-    expiredPurged++;
+  try {
+    const { or } = await import("drizzle-orm");
+    const expired = await db()
+      .selectDistinct({ invoiceId: schema.decodes.invoiceId })
+      .from(schema.decodes)
+      .innerJoin(schema.summaryTokens, eq(schema.summaryTokens.invoiceId, schema.decodes.invoiceId))
+      .innerJoin(schema.invoices, eq(schema.invoices.id, schema.decodes.invoiceId))
+      .leftJoin(schema.customers, eq(schema.customers.id, schema.invoices.customerId))
+      .where(
+        and(
+          lt(schema.summaryTokens.expiresAt, new Date()),
+          or(isNull(schema.invoices.customerId), isNull(schema.customers.retentionConsentAt)),
+        ),
+      )
+      .limit(500);
+    for (const row of expired) {
+      await db().delete(schema.decodes).where(eq(schema.decodes.invoiceId, row.invoiceId));
+      await db().delete(schema.extractions).where(eq(schema.extractions.invoiceId, row.invoiceId));
+      expiredPurged++;
+    }
+  } catch (err) {
+    console.warn("[purge] expiry pass skipped (migration 0003 applied?):", err instanceof Error ? err.message.slice(0, 120) : "");
   }
 
   return NextResponse.json({ ok: true, purged, expiredPurged, retentionDays: RETENTION_DAYS });

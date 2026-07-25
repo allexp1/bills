@@ -47,6 +47,17 @@ export async function POST(req: NextRequest) {
 
     const form = await req.formData();
     const locale = resolveLocale(String(form.get("locale") ?? "en")) as SupportedLocale;
+
+    // Opt-in retention (checkbox). Setting only — an unticked box on a later
+    // upload never silently revokes earlier consent; "delete" always does.
+    if (form.get("retain") === "on" && !customer.retentionConsentAt) {
+      const { eq } = await import("drizzle-orm");
+      await db()
+        .update(schema.customers)
+        .set({ retentionConsentAt: new Date(), retentionPromptedAt: new Date() })
+        .where(eq(schema.customers.id, customer.id))
+        .catch(() => {}); // pre-migration-0003 databases
+    }
     const files = form.getAll("pages").filter((f): f is File => f instanceof File);
     if (files.length === 0) return NextResponse.json({ error: "no_pages" }, { status: 400 });
     if (files.length > MAX_FILES) return NextResponse.json({ error: "too_many_pages", detail: `max ${MAX_FILES}` }, { status: 400 });

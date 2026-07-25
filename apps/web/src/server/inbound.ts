@@ -197,6 +197,21 @@ async function runEffect(ctx: EffectContext, effect: IntakeEffect): Promise<void
 async function routeFollowUp(ctx: EffectContext, to: string, buttonId: string): Promise<void> {
   const [action, invoiceId] = buttonId.split(":");
   if (!invoiceId) return;
+
+  // Retention consent buttons carry a choice, not an invoice id.
+  if (action === "retain") {
+    if (invoiceId === "yes") {
+      await db()
+        .update(schema.customers)
+        .set({ retentionConsentAt: new Date() })
+        .where(eq(schema.customers.id, ctx.customerId))
+        .catch(() => {});
+      await sendAndRecord(ctx, to, t(ctx.locale, "retainSaved"));
+    } else {
+      await sendAndRecord(ctx, to, t(ctx.locale, "retainDeclined"));
+    }
+    return;
+  }
   const loaded = await loadGuardedDecode(invoiceId);
   if (!loaded) {
     await sendAndRecord(ctx, to, t(ctx.locale, "unreadable"));

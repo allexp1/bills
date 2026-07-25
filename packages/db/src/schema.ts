@@ -35,6 +35,10 @@ export const customers = pgTable(
     currency: text("currency"),
     country: text("country"),
     consentTosAt: timestamp("consent_tos_at", { withTimezone: true }),
+    /** Opt-in: keep decoded bill data (encrypted, never images) past 7 days for month-to-month comparison. */
+    retentionConsentAt: timestamp("retention_consent_at", { withTimezone: true }),
+    /** When we asked (WhatsApp asks once, post-first-delivery). */
+    retentionPromptedAt: timestamp("retention_prompted_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

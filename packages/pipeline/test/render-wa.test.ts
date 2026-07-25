@@ -188,7 +188,7 @@ describe("render-wa", () => {
   });
 
   it("every locale has every string (no silent english fallbacks)", () => {
-    const keys = ["fullBreakdown", "buttonsBody", "explainMore", "showSavings", "actOnThis", "savingsIntro", "unreadable", "analyzing", "gotPage", "providerWaCta", "providerWaDraft", "providerSmsCta", "providerSmsCtaKeyword", "providerChatCta", "pitchIntro", "pitchSmsCta", "pitchWebChatHint", "pitchCall"];
+    const keys = ["fullBreakdown", "buttonsBody", "explainMore", "showSavings", "actOnThis", "savingsIntro", "unreadable", "analyzing", "gotPage", "providerWaCta", "providerWaDraft", "providerSmsCta", "providerSmsCtaKeyword", "providerChatCta", "pitchIntro", "pitchSmsCta", "pitchWebChatHint", "pitchCall", "histDelta", "histTitle", "retainAsk", "retainYesBtn", "retainNoBtn", "retainSaved", "retainDeclined"];
     for (const locale of SUPPORTED_LOCALES) {
       for (const key of keys) {
         const value = t(locale, key);
