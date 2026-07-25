@@ -15,6 +15,17 @@ export const LineItemSchema = z.object({
   rawNote: z.string().nullable(),
 });
 
+/** A discount printed on the bill — applied this cycle, or merely advertised. */
+export const PrintedDiscountSchema = z.object({
+  label: z.string(),
+  /** Decimal string exactly as printed, if an amount is shown. */
+  amount: z.string().nullable(),
+  /** The condition that unlocks it, as printed (e-billing, direct debit, online sign-up). */
+  condition: z.string().nullable(),
+  /** true = shown as applied this cycle; false = only advertised; null = unclear. */
+  applied: z.boolean().nullable(),
+});
+
 export const CommonFieldsSchema = z.object({
   providerName: z.string().nullable(),
   accountNumber: z.string().nullable(),
@@ -30,6 +41,8 @@ export const CommonFieldsSchema = z.object({
   paymentMethod: z.string().nullable(),
   /** Instructions literally printed on the bill ("tariff ends 31/03", "to cancel visit …"). */
   printedNextSteps: z.array(z.string()),
+  /** Discounts printed anywhere on the bill, applied or merely offered. */
+  printedDiscounts: z.array(PrintedDiscountSchema),
   lineItems: z.array(LineItemSchema),
   /** Language the bill itself is written in (BCP-47 base tag). */
   billLanguage: z.string().nullable(),
@@ -37,3 +50,4 @@ export const CommonFieldsSchema = z.object({
 
 export type CommonFields = z.infer<typeof CommonFieldsSchema>;
 export type LineItem = z.infer<typeof LineItemSchema>;
+export type PrintedDiscount = z.infer<typeof PrintedDiscountSchema>;

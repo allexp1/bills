@@ -25,6 +25,33 @@ export const EnergyFieldsSchema = z.object({
 });
 export type EnergyFields = z.infer<typeof EnergyFieldsSchema>;
 
+const socialTariff: SavingsLever<EnergyFields> = {
+  id: "energy_social_tariff",
+  kind: "optimize_current",
+  title: {
+    en: "Check social/regulated tariff eligibility",
+    es: "Comprobar si te corresponde el bono social",
+    fr: "Vérifier l'éligibilité au tarif social",
+    pt: "Verificar a tarifa social",
+    de: "Anspruch auf Sozialtarif prüfen",
+  },
+  promptFragment:
+    "Many markets have income-based social or regulated tariffs (e.g. 'bono social' in Spain, 'tarifa social' in Portugal) with substantial discounts. Eligibility cannot be read off a bill — suggest checking it as a possibility, with NO amount. Skip this lever entirely if the bill already shows a social tariff applied.",
+  applies: () => null, // eligibility is income-based — never visible on the bill
+  validate: () => ({ verdict: "flagged", reason: "eligibility unknown — qualitative" }),
+  nextStep: (_f, common, locale) => {
+    const provider = common.providerName ?? "";
+    const steps: Record<string, string> = {
+      en: `If your household income is low, a pension, or you have a large family, ask ${provider} (or your energy regulator's site) whether you qualify for the social/regulated tariff — discounts are often 25%+.`,
+      es: `Si tus ingresos son bajos, cobras pensión o sois familia numerosa, pregunta a ${provider} (o consulta la web del regulador) si te corresponde el bono social — los descuentos suelen superar el 25%.`,
+      fr: `Si vos revenus sont modestes, demandez à ${provider} (ou au médiateur de l'énergie) si vous avez droit à un tarif social ou au chèque énergie.`,
+      pt: `Se o rendimento do agregado é baixo, pergunte à ${provider} (ou consulte a ERSE) se tem direito à tarifa social — o desconto é substancial.`,
+      de: `Bei geringem Einkommen fragen Sie ${provider} oder die Verbraucherzentrale nach Sozialtarifen und Vergünstigungen.`,
+    };
+    return steps[locale] ?? steps.en!;
+  },
+};
+
 const switchTariff: SavingsLever<EnergyFields> = {
   id: "energy_switch_tariff",
   kind: "switch_provider",
@@ -105,6 +132,12 @@ export const energyPack: CategoryPack<EnergyFields> = {
       "standing charge = fixed daily amount you pay even with zero usage; unit rate = price per kWh; estimated read = the provider guessed your usage; regulated levies/taxes are pass-through and not negotiable.",
     gotchaChecks: [
       {
+        id: "unclaimed_discount",
+        promptFragment:
+          "The bill prints one or more discounts. For each, say whether it's actually applied this cycle or merely advertised, and what condition unlocks it (e-billing, direct debit…). An advertised-but-unapplied discount is printed money on the table.",
+        detect: (_f, common) => (common.printedDiscounts.length > 0 ? true : null),
+      },
+      {
         id: "estimated_reads",
         promptFragment:
           "If any read is estimated, call it out: the bill may not reflect real usage and can be corrected with an actual reading.",
@@ -128,5 +161,5 @@ export const energyPack: CategoryPack<EnergyFields> = {
       },
     ],
   },
-  savingsLevers: [switchTariff, actualMeterRead],
+  savingsLevers: [switchTariff, actualMeterRead, socialTariff],
 };

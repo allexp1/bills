@@ -20,6 +20,7 @@ const common = (over: Partial<CommonFields> = {}): CommonFields => ({
   country: "ES",
   paymentMethod: "direct debit",
   printedNextSteps: [],
+  printedDiscounts: [],
   lineItems: [],
   billLanguage: "es",
   ...over,
@@ -306,5 +307,44 @@ describe("broadband drop_equipment lever", () => {
       common(),
     );
     expect(v.verdict).toBe("dropped");
+  });
+});
+
+describe("new savings angles", () => {
+  it("unclaimed_discount gotcha fires on printed discounts across all packs", () => {
+    const withDiscount = common({
+      printedDiscounts: [{ label: "Descuento factura electrónica", amount: "2,00", condition: "e-factura", applied: false }],
+    });
+    for (const pack of [mobilePack, broadbandPack, energyPack]) {
+      const check = pack.decodeHints.gotchaChecks.find((g) => g.id === "unclaimed_discount")!;
+      expect(check.detect!({} as never, withDiscount)).toBe(true);
+      expect(check.detect!({} as never, common())).toBeNull();
+    }
+  });
+
+  it("social tariff and outage credits stay qualitative (never a number)", () => {
+    const social = energyPack.savingsLevers.find((l) => l.id === "energy_social_tariff")!;
+    expect(social.validate(claim({ leverId: "energy_social_tariff", estimatedSavingMinor: 5000 }), {} as never, common()).verdict).toBe("flagged");
+    expect(social.nextStep({} as never, common(), "es")).toContain("bono social");
+
+    const credits = broadbandPack.savingsLevers.find((l) => l.id === "broadband_claim_outage_credits")!;
+    expect(credits.validate(claim({ leverId: "broadband_claim_outage_credits", estimatedSavingMinor: 900 }), {} as never, common()).verdict).toBe("flagged");
+  });
+
+  it("multi-line consolidation applies at 2+ lines, qualitative without an offer", () => {
+    const lever = mobilePack.savingsLevers.find((l) => l.id === "mobile_consolidate_lines")!;
+    const twoLines = {
+      planName: null, baseFee: null, dataAllowanceGb: null, dataUsedGb: null, minutesIncluded: null, minutesUsed: null,
+      addOns: [], roamingCharges: null, outOfBundleCharges: null,
+      lines: [
+        { msisdnMasked: "***111", planName: "A", amount: "20,00", dataUsedGb: null },
+        { msisdnMasked: "***222", planName: "B", amount: "18,00", dataUsedGb: null },
+      ],
+      contractEndDate: null,
+    };
+    expect(lever.applies!(twoLines, common())).toBe(true);
+    expect(lever.applies!({ ...twoLines, lines: [twoLines.lines[0]!] }, common())).toBe(false);
+    expect(lever.validate(claim({ leverId: "mobile_consolidate_lines", estimatedSavingMinor: 1000 }), twoLines, common()).verdict).toBe("flagged");
+    expect(lever.nextStep(twoLines, common(), "en")).toContain("2 lines");
   });
 });

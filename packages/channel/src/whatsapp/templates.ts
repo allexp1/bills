@@ -41,6 +41,18 @@ export const TEMPLATES: Record<TemplateName, TemplateDefinition> = {
       de: "Erinnerung: Sie könnten {{1}} bei Ihrer {{2}}-Rechnung sparen. Antworten Sie hier, um zu handeln.",
     },
   },
+  promo_expiry: {
+    name: "promo_expiry",
+    category: "UTILITY",
+    paramCount: 2,
+    bodies: {
+      en: "Your promotional price with {{1}} ends around {{2}} — this is when your negotiating leverage peaks. Reply here and we'll prepare your pitch.",
+      es: "Tu precio promocional con {{1}} termina hacia el {{2}} — es cuando más fuerza tienes para negociar. Responde aquí y preparamos tu propuesta.",
+      fr: "Votre prix promotionnel chez {{1}} se termine vers le {{2}} — c'est le moment où votre pouvoir de négociation est maximal. Répondez ici et nous préparons votre argumentaire.",
+      pt: "O seu preço promocional com {{1}} termina por volta de {{2}} — é quando tem mais força para negociar. Responda aqui e preparamos a sua proposta.",
+      de: "Ihr Aktionspreis bei {{1}} endet um den {{2}} — jetzt ist Ihre Verhandlungsposition am stärksten. Antworten Sie hier und wir bereiten Ihren Vorschlag vor.",
+    },
+  },
   mission_update: {
     name: "mission_update",
     category: "UTILITY",

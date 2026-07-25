@@ -34,6 +34,7 @@ describe("wire schema", () => {
         country: "ES",
         paymentMethod: "",
         printedNextSteps: [],
+        printedDiscounts: [],
         lineItems: [
           { label: "Plan M", amount: "45,00", page: 1, rawNote: "" },
           { label: "Sello", amount: "", page: 0, rawNote: "" }, // page 0 = unknown
@@ -97,7 +98,7 @@ describe("wire schema", () => {
       common: {
         providerName: "X", accountNumber: "", customerRefName: "", billingPeriodStart: "", billingPeriodEnd: "",
         issueDate: "", dueDate: "", totalAmount: "10,00", pastDueAmount: "", currency: "EUR", country: "ES",
-        paymentMethod: "", printedNextSteps: [], lineItems: [], billLanguage: "es",
+        paymentMethod: "", printedNextSteps: [], printedDiscounts: [], lineItems: [], billLanguage: "es",
       },
       category_fields: { energy: parsed, broadband: null, mobile: null },
       field_confidence: {},

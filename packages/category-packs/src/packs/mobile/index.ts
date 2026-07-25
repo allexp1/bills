@@ -127,6 +127,40 @@ const lowerTier: SavingsLever<MobileFields> = {
   },
 };
 
+const consolidateLines: SavingsLever<MobileFields> = {
+  id: "mobile_consolidate_lines",
+  kind: "optimize_current",
+  title: {
+    en: "Combine your lines into one family/multi-line plan",
+    es: "Agrupar tus líneas en un plan familiar/multilínea",
+    fr: "Regrouper vos lignes dans une offre famille/multi-lignes",
+    pt: "Juntar as suas linhas num plano familiar/multilinha",
+    de: "Ihre Anschlüsse in einem Familien-/Mehrfachtarif bündeln",
+  },
+  promptFragment:
+    "The bill carries several lines billed separately. Multi-line/family plans usually price additional lines far below standalone ones. Only attach a number if a cited comparison offer covers all the lines; otherwise qualitative — name the line count and each line's amount from the bill.",
+  applies: (f) => (f.lines.length >= 2 ? true : f.lines.length === 0 ? null : false),
+  validate: (claim, _fields, common, comparison) => {
+    if (!claim.basis.comparisonOfferId) {
+      return { verdict: "flagged", reason: "no multi-line offer in data — qualitative only" };
+    }
+    const current = fieldMinor(common.totalAmount, claim.currency);
+    return verdictAgainst(claim, savingVsOffer(claim, current, comparison));
+  },
+  nextStep: (f, common, locale) => {
+    const provider = common.providerName ?? "";
+    const n = String((f.lines ?? []).length);
+    const steps: Record<string, string> = {
+      en: `You're paying for ${n} lines separately. Ask ${provider} what their multi-line/family plans would cost for all of them — let them list the options.`,
+      es: `Pagas ${n} líneas por separado. Pregunta a ${provider} cuánto costarían sus planes multilínea/familiares para todas — deja que enumeren las opciones.`,
+      fr: `Vous payez ${n} lignes séparément. Demandez à ${provider} le prix de leurs offres multi-lignes/famille pour l'ensemble — laissez-les lister les options.`,
+      pt: `Está a pagar ${n} linhas em separado. Pergunte à ${provider} quanto custariam os planos multilinha/familiares para todas — deixe-os listar as opções.`,
+      de: `Sie zahlen ${n} Anschlüsse einzeln. Fragen Sie ${provider}, was ein Mehrfach-/Familientarif für alle kosten würde — lassen Sie sich die Optionen auflisten.`,
+    };
+    return steps[locale] ?? steps.en!;
+  },
+};
+
 const rightsizePlan: SavingsLever<MobileFields> = {
   id: "mobile_rightsize_plan",
   kind: "switch_provider",
@@ -191,6 +225,12 @@ export const mobilePack: CategoryPack<MobileFields> = {
         detect: (f) => (f.outOfBundleCharges !== null ? true : null),
       },
       {
+        id: "unclaimed_discount",
+        promptFragment:
+          "The bill prints one or more discounts. For each, say whether it's actually applied this cycle or merely advertised, and what condition unlocks it (e-billing, direct debit…). An advertised-but-unapplied discount is printed money on the table.",
+        detect: (_f, common) => (common.printedDiscounts.length > 0 ? true : null),
+      },
+      {
         id: "oversized_plan",
         promptFragment:
           "The customer uses a small fraction of the plan's data allowance — they're paying for capacity they never touch. State the exact used-vs-allowance figures from the bill; this is the provider's own data and the strongest possible saving evidence.",
@@ -201,5 +241,5 @@ export const mobilePack: CategoryPack<MobileFields> = {
       },
     ],
   },
-  savingsLevers: [removeAddons, lowerTier, rightsizePlan],
+  savingsLevers: [removeAddons, lowerTier, consolidateLines, rightsizePlan],
 };

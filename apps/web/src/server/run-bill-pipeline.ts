@@ -93,6 +93,25 @@ export async function runBillPipeline(args: {
       })
       .where(eq(schema.invoices.id, invoiceId));
 
+    // History/reminder metadata — separate best-effort write so the pipeline
+    // keeps working on databases where migration 0001 isn't applied yet.
+    const isoDate = (v: unknown): string | null =>
+      typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+    const rawFields = (extraction.category_fields as Record<string, Record<string, unknown> | null>)[
+      extraction.category
+    ];
+    await database
+      .update(schema.invoices)
+      .set({
+        providerName: extraction.common.providerName,
+        promoEndDate: isoDate(rawFields?.promoEndDate),
+        contractEndDate: isoDate(rawFields?.contractEndDate),
+      })
+      .where(eq(schema.invoices.id, invoiceId))
+      .catch((err: unknown) => {
+        console.warn("[pipeline] history columns write failed (migration 0001 applied?):", err instanceof Error ? err.message.slice(0, 120) : "");
+      });
+
     // Live market research (web search) merged with curated data — best-effort.
     const fields = (extraction.category_fields as Record<string, unknown>)[pack.id];
     const offers = await gatherOffers(pack.id, fields, extraction.common);

@@ -20,6 +20,7 @@ const extraction: MergedExtraction = {
     country: "ES",
     paymentMethod: null,
     printedNextSteps: ["Para cancelar servicios: área cliente > servicios"],
+    printedDiscounts: [],
     lineItems: [
       { label: "Plan M", amount: "45,00", page: 1, rawNote: null },
       { label: "Premium SMS", amount: "9,99", page: 1, rawNote: null },

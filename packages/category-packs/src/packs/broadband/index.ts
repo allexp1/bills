@@ -83,6 +83,33 @@ const switchProvider: SavingsLever<BroadbandFields> = {
   },
 };
 
+const claimOutageCredits: SavingsLever<BroadbandFields> = {
+  id: "broadband_claim_outage_credits",
+  kind: "optimize_current",
+  title: {
+    en: "Claim credits for outages you already had",
+    es: "Reclamar abonos por cortes que ya sufriste",
+    fr: "Réclamer des crédits pour les pannes déjà subies",
+    pt: "Reclamar créditos por falhas que já teve",
+    de: "Gutschriften für erlittene Ausfälle einfordern",
+  },
+  promptFragment:
+    "Outage/degraded-service credits are typically owed by policy but only issued ON REQUEST — professional bill negotiators win a large share of their savings exactly here. Suggest the customer asks whether any service incidents this period qualify for a credit. Never state an amount unless a credit line is printed on the bill.",
+  applies: () => null, // can't see outages on a bill — always worth asking
+  validate: () => ({ verdict: "flagged", reason: "outage credits are request-based — qualitative" }),
+  nextStep: (_f, common, locale) => {
+    const provider = common.providerName ?? "";
+    const steps: Record<string, string> = {
+      en: `If your service dropped or slowed this period, ask ${provider}: "Were there incidents in my area this cycle? I'd like the corresponding credit." They rarely volunteer it.`,
+      es: `Si tu servicio se cortó o fue lento este periodo, pregunta a ${provider}: "¿Hubo incidencias en mi zona este ciclo? Quiero el abono correspondiente." Rara vez lo ofrecen solos.`,
+      fr: `Si votre service a été coupé ou ralenti, demandez à ${provider} : « Y a-t-il eu des incidents dans ma zone ? Je souhaite le crédit correspondant. » Ils le proposent rarement d'eux-mêmes.`,
+      pt: `Se o serviço falhou ou esteve lento neste período, pergunte à ${provider}: "Houve incidentes na minha zona? Quero o crédito correspondente." Raramente o oferecem por iniciativa própria.`,
+      de: `Bei Ausfällen oder langsamem Dienst fragen Sie ${provider}: „Gab es Störungen in meinem Gebiet? Ich möchte die entsprechende Gutschrift." Von selbst wird sie selten angeboten.`,
+    };
+    return steps[locale] ?? steps.en!;
+  },
+};
+
 const dropEquipmentFees: SavingsLever<BroadbandFields> = {
   id: "broadband_drop_equipment",
   kind: "optimize_current",
@@ -155,11 +182,17 @@ export const broadbandPack: CategoryPack<BroadbandFields> = {
         detect: (f) => (f.promoPrice !== null ? true : null),
       },
       {
+        id: "unclaimed_discount",
+        promptFragment:
+          "The bill prints one or more discounts. For each, say whether it's actually applied this cycle or merely advertised, and what condition unlocks it (e-billing, direct debit…). An advertised-but-unapplied discount is printed money on the table.",
+        detect: (_f, common) => (common.printedDiscounts.length > 0 ? true : null),
+      },
+      {
         id: "equipment_fee",
         promptFragment: "If equipment fees exist, note they're often waivable or avoidable with your own router.",
         detect: (f) => (f.equipmentFees.length > 0 ? f.equipmentFees.some((e) => e.amount !== null) : null),
       },
     ],
   },
-  savingsLevers: [renegotiate, dropEquipmentFees, switchProvider],
+  savingsLevers: [renegotiate, dropEquipmentFees, claimOutageCredits, switchProvider],
 };

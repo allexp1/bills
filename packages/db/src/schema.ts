@@ -90,6 +90,12 @@ export const invoices = pgTable(
     pageCount: integer("page_count").notNull().default(0),
     summaryTokenId: text("summary_token_id"),
     errorCode: text("error_code"),
+    /** Plain provider name for history matching across months (not sensitive). */
+    providerName: text("provider_name"),
+    /** Bill-sourced ISO dates surfaced for the renegotiation-timing cron. */
+    promoEndDate: text("promo_end_date"),
+    contractEndDate: text("contract_end_date"),
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

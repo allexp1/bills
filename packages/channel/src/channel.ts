@@ -24,7 +24,7 @@ export interface SendResult {
 }
 
 /** Pre-approved template names (see templates.ts for definitions). */
-export type TemplateName = "bill_ready" | "savings_reminder" | "mission_update";
+export type TemplateName = "bill_ready" | "savings_reminder" | "promo_expiry" | "mission_update";
 
 export const MAX_BUTTONS = 3;
 export const MAX_BUTTON_TITLE = 20;
