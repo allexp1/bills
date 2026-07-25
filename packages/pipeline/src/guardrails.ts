@@ -7,8 +7,8 @@ import {
   type LeverVerdict,
   type MergedExtraction,
 } from "@bills/category-packs";
-import type { DecodeOutput } from "@bills/llm";
-import { parseAmount } from "@bills/shared";
+import type { DecodeOutput, NegotiationPitch } from "@bills/llm";
+import { parseAmount, redactRestrictedData, withinTolerance } from "@bills/shared";
 
 /**
  * The trust boundary: pure-code verification that every number the decode
@@ -30,6 +30,21 @@ export interface GuardedSaving {
   offer?: { provider: string; name: string; link?: string; estMonthlyCostMinor: number };
 }
 
+export interface GuardedPitch {
+  strategy: NegotiationPitch["strategy"];
+  /** Ready-to-send provider message, swept and redacted. */
+  chatMessage: string;
+  callScript: {
+    opening: string;
+    ask: string;
+    evidence: string[];
+    objections: Array<{ ifTheySay: string; youSay: string }>;
+    closing: string;
+  };
+  /** Verified target price (minor units); null when the model's figure didn't ground. */
+  targetMonthlyMinor: number | null;
+}
+
 export interface GuardedDecode {
   language: string;
   headline: string;
@@ -38,6 +53,8 @@ export interface GuardedDecode {
   printedNextSteps: string[];
   savings: GuardedSaving[];
   explainMoreQueue: string[];
+  /** Negotiation pitch to the current provider, post-sweep; absent when dropped or not generated. */
+  pitch?: GuardedPitch;
   /**
    * The bill's provider's official support-chat channel, when the curated
    * directory has a source-confirmed one. whatsapp/sms render as deep links
@@ -217,6 +234,10 @@ export function applyGuardrails(args: {
     ...offers.map((o) => o.estMonthlyCostMinor),
   ]);
 
+  const guardedPitch = decode.negotiationPitch
+    ? guardPitch(decode.negotiationPitch, derivable, offers, currency, report)
+    : null;
+
   const guarded: GuardedDecode = {
     language: decode.language,
     headline: sweepText(decode.headline, derivable, currency, "headline", report),
@@ -229,9 +250,62 @@ export function applyGuardrails(args: {
     printedNextSteps: decode.printedNextSteps,
     savings,
     explainMoreQueue: decode.explainMoreQueue.map((t, i) => sweepText(t, derivable, currency, `explain:${i}`, report)).filter((t) => t.trim().length > 0),
+    ...(guardedPitch ? { pitch: guardedPitch } : {}),
   };
 
   return { guarded, report };
+}
+
+/**
+ * Guard the negotiation pitch: same numeric sweep as all prose, restricted-
+ * data redaction on top (a pitch travels to the provider), and a target
+ * price that must ground to a cited offer or a bill-derived amount. A pitch
+ * whose chat message doesn't survive the sweep is dropped entirely — the
+ * customer falls back to DIY next steps rather than sending gutted text.
+ */
+function guardPitch(
+  pitch: NegotiationPitch,
+  derivable: Set<number>,
+  offers: ComparisonOffer[],
+  currency: string,
+  report: GuardrailReport,
+): GuardedPitch | null {
+  const clean = (text: string, where: string): string =>
+    redactRestrictedData(sweepText(text, derivable, currency, where, report)).text.trim();
+
+  const chatMessage = clean(pitch.chatMessage, "pitch:chatMessage");
+  if (!chatMessage) {
+    report.removedSentences.push({ where: "pitch", sentence: "[pitch dropped: chat message fully removed]" });
+    return null;
+  }
+
+  const citedOffers = pitch.basis.comparisonOfferIds
+    .map((id) => offers.find((o) => o.id === id))
+    .filter((o): o is ComparisonOffer => o !== undefined);
+  let target = pitch.targetMonthlyMinor;
+  if (target !== null) {
+    const t = target;
+    const grounded =
+      citedOffers.some((o) => withinTolerance(t, o.estMonthlyCostMinor, currency)) ||
+      derivable.has(t) ||
+      [...derivable].some((v) => withinTolerance(t, v, currency));
+    if (!grounded) target = null;
+  }
+
+  return {
+    strategy: pitch.strategy,
+    chatMessage,
+    callScript: {
+      opening: clean(pitch.callScript.opening, "pitch:opening"),
+      ask: clean(pitch.callScript.ask, "pitch:ask"),
+      evidence: pitch.callScript.evidence.map((e, i) => clean(e, `pitch:evidence:${i}`)).filter((e) => e.length > 0),
+      objections: pitch.callScript.objections
+        .map((o) => ({ ifTheySay: clean(o.ifTheySay, "pitch:objection"), youSay: clean(o.youSay, "pitch:objection") }))
+        .filter((o) => o.ifTheySay.length > 0 && o.youSay.length > 0),
+      closing: clean(pitch.callScript.closing, "pitch:closing"),
+    },
+    targetMonthlyMinor: target,
+  };
 }
 
 /** Run every pack gotcha detector; results injected into the decode prompt as facts. */

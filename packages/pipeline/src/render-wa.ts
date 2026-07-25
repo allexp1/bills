@@ -32,6 +32,10 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     providerSmsCta: "📱 {provider} offers support by text message — text {number} from your phone and ask about better plans or discounts.",
     providerSmsCtaKeyword: "📱 {provider} offers support by text message — text \"{keyword}\" to {number} from your phone.",
     providerChatCta: "💻 {provider} has official online chat support:",
+    pitchIntro: "📣 Here's your ready-to-send message asking for a better deal — copy it, or use the link below:",
+    pitchSmsCta: "📱 Send the message above by text to {number} — that's {provider}'s official support line.",
+    pitchWebChatHint: "💻 Copy the message above, then paste it into {provider}'s official chat:",
+    pitchCall: "Prefer to call? Read this:",
   },
   es: {
     fullBreakdown: "Desglose completo",
@@ -56,6 +60,10 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     providerSmsCta: "📱 {provider} atiende por SMS — envía un mensaje al {number} desde tu teléfono y pregunta por planes o descuentos mejores.",
     providerSmsCtaKeyword: "📱 {provider} atiende por SMS — envía \"{keyword}\" al {number} desde tu teléfono.",
     providerChatCta: "💻 {provider} tiene chat de atención oficial en línea:",
+    pitchIntro: "📣 Aquí tienes tu mensaje listo para pedir una oferta mejor — cópialo o usa el enlace de abajo:",
+    pitchSmsCta: "📱 Envía el mensaje de arriba por SMS al {number} — es la línea oficial de {provider}.",
+    pitchWebChatHint: "💻 Copia el mensaje de arriba y pégalo en el chat oficial de {provider}:",
+    pitchCall: "¿Prefieres llamar? Lee esto:",
   },
   fr: {
     fullBreakdown: "Détail complet",
@@ -80,6 +88,10 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     providerSmsCta: "📱 {provider} répond par SMS — envoyez un message au {number} depuis votre téléphone pour demander un meilleur forfait ou une remise.",
     providerSmsCtaKeyword: "📱 {provider} répond par SMS — envoyez \"{keyword}\" au {number} depuis votre téléphone.",
     providerChatCta: "💻 {provider} propose un chat d'assistance officiel en ligne :",
+    pitchIntro: "📣 Voici votre message prêt à envoyer pour demander une meilleure offre — copiez-le ou utilisez le lien ci-dessous :",
+    pitchSmsCta: "📱 Envoyez le message ci-dessus par SMS au {number} — la ligne officielle de {provider}.",
+    pitchWebChatHint: "💻 Copiez le message ci-dessus, puis collez-le dans le chat officiel de {provider} :",
+    pitchCall: "Vous préférez appeler ? Lisez ceci :",
   },
   pt: {
     fullBreakdown: "Detalhe completo",
@@ -104,6 +116,10 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     providerSmsCta: "📱 A {provider} atende por SMS — envie uma mensagem para {number} do seu telefone e pergunte por planos ou descontos melhores.",
     providerSmsCtaKeyword: "📱 A {provider} atende por SMS — envie \"{keyword}\" para {number} do seu telefone.",
     providerChatCta: "💻 A {provider} tem chat de apoio oficial online:",
+    pitchIntro: "📣 Aqui está a sua mensagem pronta a enviar para pedir uma oferta melhor — copie-a ou use o link abaixo:",
+    pitchSmsCta: "📱 Envie a mensagem acima por SMS para {number} — a linha oficial da {provider}.",
+    pitchWebChatHint: "💻 Copie a mensagem acima e cole-a no chat oficial da {provider}:",
+    pitchCall: "Prefere ligar? Leia isto:",
   },
   de: {
     fullBreakdown: "Vollständige Aufschlüsselung",
@@ -128,6 +144,10 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     providerSmsCta: "📱 {provider} bietet Support per SMS — schreiben Sie an {number} und fragen Sie nach besseren Tarifen oder Rabatten.",
     providerSmsCtaKeyword: "📱 {provider} bietet Support per SMS — senden Sie \"{keyword}\" an {number}.",
     providerChatCta: "💻 {provider} hat offiziellen Online-Chat-Support:",
+    pitchIntro: "📣 Hier ist Ihre fertige Nachricht für ein besseres Angebot — kopieren Sie sie oder nutzen Sie den Link unten:",
+    pitchSmsCta: "📱 Senden Sie die Nachricht oben per SMS an {number} — die offizielle Support-Nummer von {provider}.",
+    pitchWebChatHint: "💻 Kopieren Sie die Nachricht oben und fügen Sie sie im offiziellen Chat von {provider} ein:",
+    pitchCall: "Lieber anrufen? Lesen Sie das:",
   },
 };
 
@@ -194,19 +214,24 @@ function providerChatOf(guarded: GuardedDecode): NonNullable<GuardedDecode["prov
  * pre-typed; web_chat is a plain link (widgets can't preload text). Null
  * when the curated directory has no source-confirmed channel.
  */
-export function buildProviderChatCta(guarded: GuardedDecode, locale: SupportedLocale): ProviderChatCta | null {
+export function buildProviderChatCta(
+  guarded: GuardedDecode,
+  locale: SupportedLocale,
+  opts?: { message?: string },
+): ProviderChatCta | null {
   const chat = providerChatOf(guarded);
   if (!chat) return null;
   const providerName = chat.providerName;
-  const draft = t(locale, "providerWaDraft", { provider: providerName });
+  const message = opts?.message ?? t(locale, "providerWaDraft", { provider: providerName });
   if (chat.channel === "whatsapp" && chat.waNumber) {
-    return { channel: "whatsapp", providerName, url: buildWaLink(chat.waNumber, draft) };
+    return { channel: "whatsapp", providerName, url: buildWaLink(chat.waNumber, message) };
   }
   if (chat.channel === "sms" && chat.smsNumber) {
+    // A fixed keyword (what the short code expects) always beats free text.
     return {
       channel: "sms",
       providerName,
-      url: buildSmsLink(chat.smsNumber, chat.smsBody ?? draft),
+      url: buildSmsLink(chat.smsNumber, chat.smsBody ?? message),
       displayNumber: chat.smsNumber,
       ...(chat.smsBody ? { smsKeyword: chat.smsBody } : {}),
     };
@@ -215,6 +240,47 @@ export function buildProviderChatCta(guarded: GuardedDecode, locale: SupportedLo
     return { channel: "web_chat", providerName, url: chat.chatUrl };
   }
   return null;
+}
+
+/**
+ * The "Act on this" flow when a guarded negotiation pitch exists: the
+ * ready-to-send message in its own bubble (easy to copy/forward), the
+ * channel CTA preloading that exact pitch, and the phone-call script.
+ * Null when there's no pitch — callers fall back to DIY next steps.
+ */
+export function buildPitchMessages(guarded: GuardedDecode, locale: SupportedLocale): string[] | null {
+  const pitch = guarded.pitch;
+  if (!pitch) return null;
+  const messages = [t(locale, "pitchIntro"), pitch.chatMessage];
+
+  const cta = buildProviderChatCta(guarded, locale, { message: pitch.chatMessage });
+  if (cta) {
+    if (cta.channel === "whatsapp") {
+      messages.push(`${t(locale, "providerWaCta", { provider: cta.providerName })}\n${cta.url}`);
+    } else if (cta.channel === "sms") {
+      messages.push(
+        cta.smsKeyword
+          ? t(locale, "providerSmsCtaKeyword", { provider: cta.providerName, keyword: cta.smsKeyword, number: cta.displayNumber! })
+          : t(locale, "pitchSmsCta", { provider: cta.providerName, number: cta.displayNumber! }),
+      );
+    } else {
+      messages.push(`${t(locale, "pitchWebChatHint", { provider: cta.providerName })}\n${cta.url}`);
+    }
+  }
+
+  const s = pitch.callScript;
+  const scriptLines = [
+    `📞 ${t(locale, "pitchCall")}`,
+    "",
+    s.opening,
+    s.ask,
+    ...s.evidence.map((e) => `• ${e}`),
+    ...s.objections.map((o) => `❓ "${o.ifTheySay}"\n→ ${o.youSay}`),
+    s.closing,
+  ].filter((line, i) => i < 2 || line.length > 0);
+  messages.push(scriptLines.join("\n"));
+
+  return messages;
 }
 
 /** "Show savings" flow: one message per item, verified numbers only. */

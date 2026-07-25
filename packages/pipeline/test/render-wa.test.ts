@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SUPPORTED_LOCALES } from "@bills/shared";
 import type { GuardedDecode } from "../src/guardrails.js";
-import { buildFollowUpButtons, buildProviderChatCta, buildSavingsMessages, buildSummaryMessage, t } from "../src/render-wa.js";
+import { buildFollowUpButtons, buildPitchMessages, buildProviderChatCta, buildSavingsMessages, buildSummaryMessage, t } from "../src/render-wa.js";
 
 const guarded: GuardedDecode = {
   language: "es",
@@ -122,8 +122,65 @@ describe("render-wa", () => {
     expect(buildSavingsMessages(web, "en")[3]).toContain("https://www.verizon.com/support/contact-us/");
   });
 
+  it("pitch messages: null without a pitch; message bubble + preloaded CTA + call script with one", () => {
+    expect(buildPitchMessages(guarded, "es")).toBeNull();
+
+    const pitched: GuardedDecode = {
+      ...guarded,
+      providerChat: { providerName: "Movistar", channel: "whatsapp", waNumber: "+34638101004", source: "https://..." },
+      pitch: {
+        strategy: "competitor_anchor",
+        chatMessage: "Hola, soy cliente de Movistar. Rival ofrece lo mismo por 29,99 €. ¿Podéis igualarlo?",
+        callScript: {
+          opening: "Hola, llamo por mi tarifa.",
+          ask: "Quiero igualar 29,99 € al mes.",
+          evidence: ["Rival: Plan X por 29,99 €."],
+          objections: [{ ifTheySay: "No es posible.", youSay: "Pásame con retención, por favor." }],
+          closing: "Gracias.",
+        },
+        targetMonthlyMinor: 2999,
+      },
+    };
+    const msgs = buildPitchMessages(pitched, "es")!;
+    expect(msgs[0]).toBe(t("es", "pitchIntro"));
+    expect(msgs[1]).toBe(pitched.pitch!.chatMessage); // its own bubble, copyable
+    expect(msgs[2]).toContain("wa.me/34638101004");
+    // The deep link preloads the PITCH, not the generic draft:
+    expect(decodeURIComponent(msgs[2]!.split("text=")[1]!)).toContain("Rival ofrece");
+    expect(msgs[3]).toContain(t("es", "pitchCall"));
+    expect(msgs[3]).toContain("retención");
+  });
+
+  it("pitch CTA on sms/web_chat channels degrades correctly", () => {
+    const base = {
+      strategy: "plan_fit" as const,
+      chatMessage: "I'd like a better plan.",
+      callScript: { opening: "o", ask: "a", evidence: [], objections: [], closing: "c" },
+      targetMonthlyMinor: null,
+    };
+    const sms: GuardedDecode = {
+      ...guarded,
+      providerChat: { providerName: "Xfinity", channel: "sms", smsNumber: "266278", source: "https://..." },
+      pitch: base,
+    };
+    const smsMsgs = buildPitchMessages(sms, "en")!;
+    expect(smsMsgs[2]).toContain("266278"); // instructions — sms: URI isn't tappable in WA
+    expect(buildProviderChatCta(sms, "en", { message: base.chatMessage })!.url).toBe(
+      `sms:266278?&body=${encodeURIComponent(base.chatMessage)}`,
+    );
+
+    const web: GuardedDecode = {
+      ...guarded,
+      providerChat: { providerName: "Verizon", channel: "web_chat", chatUrl: "https://www.verizon.com/support/contact-us/", source: "https://..." },
+      pitch: base,
+    };
+    const webMsgs = buildPitchMessages(web, "en")!;
+    expect(webMsgs[2]).toContain("https://www.verizon.com/support/contact-us/");
+    expect(webMsgs[2]).toContain(t("en", "pitchWebChatHint", { provider: "Verizon" }));
+  });
+
   it("every locale has every string (no silent english fallbacks)", () => {
-    const keys = ["fullBreakdown", "buttonsBody", "explainMore", "showSavings", "actOnThis", "savingsIntro", "unreadable", "analyzing", "gotPage", "providerWaCta", "providerWaDraft", "providerSmsCta", "providerSmsCtaKeyword", "providerChatCta"];
+    const keys = ["fullBreakdown", "buttonsBody", "explainMore", "showSavings", "actOnThis", "savingsIntro", "unreadable", "analyzing", "gotPage", "providerWaCta", "providerWaDraft", "providerSmsCta", "providerSmsCtaKeyword", "providerChatCta", "pitchIntro", "pitchSmsCta", "pitchWebChatHint", "pitchCall"];
     for (const locale of SUPPORTED_LOCALES) {
       for (const key of keys) {
         const value = t(locale, key);

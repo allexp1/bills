@@ -3,6 +3,7 @@ import { db, encryptText, schema } from "@bills/db";
 import {
   GREETINGS,
   INITIAL_STATE,
+  buildPitchMessages,
   buildSavingsMessages,
   nextExplainMore,
   t,
@@ -213,8 +214,14 @@ async function routeFollowUp(ctx: EffectContext, to: string, buttonId: string): 
     return;
   }
   if (action === "act") {
-    // Phase 1: DIY next steps. Phase 2 replaces this with the mission
-    // authorization flow (see packages/missions).
+    // Preferred: the guarded negotiation pitch (ready-to-send message +
+    // channel CTA + call script). Fallback when no pitch survived: DIY
+    // next steps. Phase 2 layers the mission authorization flow on top.
+    const pitchMessages = buildPitchMessages(guarded, ctx.locale);
+    if (pitchMessages) {
+      for (const msg of pitchMessages) await sendAndRecord(ctx, to, msg);
+      return;
+    }
     const steps = guarded.savings.map((s) => `➡️ ${s.nextStep}`);
     const body = [t(ctx.locale, "actWaitlist"), ...new Set(steps)].join("\n\n");
     await sendAndRecord(ctx, to, body);

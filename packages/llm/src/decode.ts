@@ -5,7 +5,7 @@ import type { CommonFields } from "@bills/category-packs";
 import type { SupportedLocale } from "@bills/shared";
 import { MODEL, anthropic, usageFrom, type LlmUsage } from "./client.js";
 
-export const DECODE_PROMPT_VERSION = "decode-v1";
+export const DECODE_PROMPT_VERSION = "decode-v2";
 
 export const SavingsClaimSchema = z.object({
   leverId: z.string(),
@@ -19,6 +19,28 @@ export const SavingsClaimSchema = z.object({
   }),
   explanation: z.string(),
 });
+
+export const NegotiationPitchSchema = z.object({
+  /** The BILL's language — this text goes to the provider's local support. */
+  language: z.string(),
+  strategy: z.enum(["competitor_anchor", "plan_fit", "loyalty_retention"]),
+  /** Ready to send as-is via WhatsApp/SMS/chat. Keep under ~600 chars. */
+  chatMessage: z.string(),
+  callScript: z.object({
+    opening: z.string(),
+    ask: z.string(),
+    evidence: z.array(z.string()),
+    objections: z.array(z.object({ ifTheySay: z.string(), youSay: z.string() })).max(3),
+    closing: z.string(),
+  }),
+  /** The monthly price to ask for, integer minor units; null if ungroundable. */
+  targetMonthlyMinor: z.number().int().nullable(),
+  basis: z.object({
+    extractionPaths: z.array(z.string()),
+    comparisonOfferIds: z.array(z.string()),
+  }),
+});
+export type NegotiationPitch = z.infer<typeof NegotiationPitchSchema>;
 
 export const DecodeOutputSchema = z.object({
   language: z.string(),
@@ -42,6 +64,8 @@ export const DecodeOutputSchema = z.object({
   savings: z.array(SavingsClaimSchema),
   /** Deeper explanations held back for the "Explain more" button. */
   explainMoreQueue: z.array(z.string()),
+  /** Provider-facing negotiation pitch; null when nothing is negotiable. */
+  negotiationPitch: NegotiationPitchSchema.nullable(),
 });
 export type DecodeOutput = z.infer<typeof DecodeOutputSchema>;
 
@@ -62,7 +86,14 @@ Hard rules:
 4. Savings may only instantiate the levers listed below — use the exact leverId. Amounts in integer minor units.
 5. Use the pre-computed gotcha facts as truth; do not re-derive or contradict them.
 6. End the summary thinking with: what the customer actually pays this cycle, and why.
-7. Keep the headline to one sentence a stressed person skims. Keep sections short; put depth into explainMoreQueue.`;
+7. Keep the headline to one sentence a stressed person skims. Keep sections short; put depth into explainMoreQueue.
+
+Negotiation pitch (negotiationPitch):
+8. When there is a real negotiable opportunity (any available lever applies), also produce a pitch the CUSTOMER can send or say to their CURRENT provider to get a better price. If nothing is genuinely negotiable, set negotiationPitch to null.
+9. Strategy: a cheaper comparable offer exists → "competitor_anchor" (name the competitor, plan and its monthly price from comparisonOffers); paying for add-ons/capacity they don't use → "plan_fit"; contract ending or an out-of-contract price jump → "loyalty_retention".
+10. Write chatMessage and every callScript field in the BILL's language (extraction.common.billLanguage; fall back to the customer's locale) — a local support agent will read it. First person, as the customer. Polite, firm, specific: state how long they've been a customer if visible, name the exact target price, and ask for the retention/loyalty team if the first answer is no.
+11. chatMessage must stand alone, under 600 characters, and end with a concrete question. The callScript is for reading aloud on a phone call: short spoken sentences; evidence lines each cite one bill fact or one competitor offer; at most 3 objections with realistic agent pushback.
+12. Pitch grounding is rule 3 applied twice: every amount in the pitch must trace to basis.extractionPaths or a basis.comparisonOfferIds entry, and targetMonthlyMinor must equal a cited offer's price or a defensible bill-derived figure — otherwise leave it null and ask without a number. NEVER put account numbers, ID numbers or payment details in the pitch; "my account" suffices, the provider sees who is writing.`;
 }
 
 export async function decodeBill(args: {

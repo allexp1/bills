@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mobilePack, type MergedExtraction } from "@bills/category-packs";
-import type { DecodeOutput } from "@bills/llm";
+import type { DecodeOutput, NegotiationPitch } from "@bills/llm";
 import { applyGuardrails, computeGotchaFacts } from "../src/guardrails.js";
 
 const extraction: MergedExtraction = {
@@ -81,6 +81,23 @@ const baseDecode: DecodeOutput = {
     },
   ],
   explainMoreQueue: ["El IVA está incluido en todos los importes."],
+  negotiationPitch: null,
+};
+
+const basePitch: NegotiationPitch = {
+  language: "es",
+  strategy: "plan_fit",
+  chatMessage:
+    "Hola, soy cliente de Vodafone. Mi factura es de 57,98 € al mes y estoy pagando 12,98 € en servicios extra que no uso. ¿Podéis ofrecerme un plan mejor ajustado?",
+  callScript: {
+    opening: "Hola, llamo por mi tarifa actual.",
+    ask: "Quiero pagar solo por lo que uso — ¿qué me podéis ofrecer?",
+    evidence: ["Pago 45,00 € de plan base.", "Pago 12,98 € en extras."],
+    objections: [{ ifTheySay: "Es la mejor tarifa disponible.", youSay: "Entonces quiero hablar con el equipo de retención." }],
+    closing: "Gracias, quedo a la espera.",
+  },
+  targetMonthlyMinor: 4500,
+  basis: { extractionPaths: ["category_fields.mobile.baseFee"], comparisonOfferIds: [] },
 };
 
 describe("applyGuardrails", () => {
@@ -136,6 +153,60 @@ describe("applyGuardrails", () => {
     expect(section?.plainExplanation).not.toContain("38,50");
     expect(section?.plainExplanation).toContain("45,00");
     expect(report.removedSentences.some((r) => r.sentence.includes("38,50"))).toBe(true);
+  });
+});
+
+describe("guarded pitch", () => {
+  const withPitch = (pitch: typeof basePitch): DecodeOutput => ({ ...structuredClone(baseDecode), negotiationPitch: pitch });
+  const run = (decode: DecodeOutput, offers: Parameters<typeof applyGuardrails>[0]["offers"] = []) =>
+    applyGuardrails({ decode, extraction, pack: mobilePack, offers, locale: "es" });
+
+  it("keeps a fully grounded pitch, target included", () => {
+    const { guarded, report } = run(withPitch(basePitch));
+    expect(guarded.pitch).toBeDefined();
+    expect(guarded.pitch!.chatMessage).toContain("57,98");
+    expect(guarded.pitch!.targetMonthlyMinor).toBe(4500); // = base fee, derivable
+    expect(report.removedSentences).toEqual([]);
+  });
+
+  it("strips fabricated amounts from the pitch and nulls an ungrounded target", () => {
+    const bad = structuredClone(basePitch);
+    bad.chatMessage += " Un vecino paga solo 19,99 € al mes por lo mismo.";
+    bad.targetMonthlyMinor = 1999; // grounds to nothing on this bill
+    const { guarded, report } = run(withPitch(bad));
+    expect(guarded.pitch!.chatMessage).not.toContain("19,99");
+    expect(guarded.pitch!.targetMonthlyMinor).toBeNull();
+    expect(report.removedSentences.some((r) => r.where === "pitch:chatMessage")).toBe(true);
+  });
+
+  it("accepts a target matching a cited comparison offer", () => {
+    const offers = [
+      { id: "web-mobile-0", provider: "Rival", name: "Plan X", estMonthlyCostMinor: 2999, currency: "EUR", country: "ES", link: "https://rival.example" },
+    ];
+    const cited = structuredClone(basePitch);
+    cited.strategy = "competitor_anchor";
+    cited.chatMessage = "Hola, soy cliente de Vodafone. Rival ofrece Plan X por 29,99 € al mes. ¿Podéis igualarlo?";
+    cited.targetMonthlyMinor = 2999;
+    cited.basis.comparisonOfferIds = ["web-mobile-0"];
+    const { guarded } = run(withPitch(cited), offers);
+    expect(guarded.pitch!.targetMonthlyMinor).toBe(2999);
+    expect(guarded.pitch!.chatMessage).toContain("29,99");
+  });
+
+  it("redacts restricted data that leaks into the pitch", () => {
+    const leaky = structuredClone(basePitch);
+    leaky.chatMessage = "Hola, soy cliente de Vodafone. Mi tarjeta es 4111 1111 1111 1111. ¿Hay ofertas mejores?";
+    const { guarded } = run(withPitch(leaky));
+    expect(guarded.pitch!.chatMessage).not.toContain("4111");
+    expect(guarded.pitch!.chatMessage).toContain("[card number redacted]");
+  });
+
+  it("drops the pitch entirely when the chat message doesn't survive the sweep", () => {
+    const hollow = structuredClone(basePitch);
+    hollow.chatMessage = "Vuestra oferta media es 21,50 € según mis cálculos.";
+    const { guarded, report } = run(withPitch(hollow));
+    expect(guarded.pitch).toBeUndefined();
+    expect(report.removedSentences.some((r) => r.where === "pitch")).toBe(true);
   });
 });
 

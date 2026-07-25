@@ -3,10 +3,12 @@ export { extractBill, type BillPage, type ExtractionResult } from "./extract.js"
 export {
   decodeBill,
   DecodeOutputSchema,
+  NegotiationPitchSchema,
   SavingsClaimSchema,
   DECODE_PROMPT_VERSION,
   type DecodeOutput,
   type DecodeResult,
+  type NegotiationPitch,
 } from "./decode.js";
 export { extractionSystemPrompt, EXTRACTION_PROMPT_VERSION } from "./prompts/extraction.js";
 export { WebSearchComparisonSource } from "./comparison-search.js";

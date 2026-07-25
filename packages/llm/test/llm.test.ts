@@ -46,10 +46,42 @@ describe("DecodeOutputSchema", () => {
         },
       ],
       explainMoreQueue: [],
+      negotiationPitch: null,
     };
     expect(DecodeOutputSchema.parse(good).savings).toHaveLength(1);
     const bad = structuredClone(good);
     (bad.savings[0] as { period: string }).period = "weekly";
+    expect(() => DecodeOutputSchema.parse(bad)).toThrow();
+  });
+
+  it("accepts a decode with a negotiation pitch and rejects unknown strategies", () => {
+    const pitch = {
+      language: "es",
+      strategy: "competitor_anchor",
+      chatMessage: "Hola…",
+      callScript: {
+        opening: "o",
+        ask: "a",
+        evidence: ["e1"],
+        objections: [{ ifTheySay: "no", youSay: "retención" }],
+        closing: "c",
+      },
+      targetMonthlyMinor: 2999,
+      basis: { extractionPaths: ["common.totalAmount"], comparisonOfferIds: ["web-mobile-0"] },
+    };
+    const good = {
+      language: "es",
+      headline: "h",
+      sections: [],
+      gotchas: [],
+      printedNextSteps: [],
+      savings: [],
+      explainMoreQueue: [],
+      negotiationPitch: pitch,
+    };
+    expect(DecodeOutputSchema.parse(good).negotiationPitch?.strategy).toBe("competitor_anchor");
+    const bad = structuredClone(good);
+    (bad.negotiationPitch as { strategy: string }).strategy = "guilt_trip";
     expect(() => DecodeOutputSchema.parse(bad)).toThrow();
   });
 });
