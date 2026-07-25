@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CommonFieldsSchema } from "./common-schema.js";
+import { normalizeWireData, toWireSchema } from "./wire.js";
 import type { CategoryPack } from "./pack.js";
 import { energyPack } from "./packs/energy/index.js";
 import { broadbandPack } from "./packs/broadband/index.js";
@@ -36,6 +37,23 @@ export function mergedExtractionSchema(packs: CategoryPack<any>[] = PACKS) {
 }
 
 export type MergedExtraction = z.infer<ReturnType<typeof mergedExtractionSchema>>;
+
+/**
+ * Wire variant for the structured-output API call: leaf nullables replaced by
+ * sentinels to stay under the API's 16-union-parameter limit. Convert results
+ * back with `normalizeExtraction`.
+ */
+export function mergedWireExtractionSchema(packs: CategoryPack<any>[] = PACKS) {
+  return toWireSchema(mergedExtractionSchema(packs)) as ReturnType<typeof mergedExtractionSchema>;
+}
+
+export function normalizeExtraction(
+  wireData: unknown,
+  packs: CategoryPack<any>[] = PACKS,
+): MergedExtraction {
+  const domain = mergedExtractionSchema(packs);
+  return domain.parse(normalizeWireData(domain, wireData));
+}
 
 /** Combined per-field prompt annotations for the extraction system prompt. */
 export function combinedExtractionHints(packs: CategoryPack<any>[] = PACKS): string {

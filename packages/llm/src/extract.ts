@@ -1,6 +1,7 @@
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import {
-  mergedExtractionSchema,
+  mergedWireExtractionSchema,
+  normalizeExtraction,
   type CategoryPack,
   type MergedExtraction,
 } from "@bills/category-packs";
@@ -42,7 +43,9 @@ function contentBlockFor(page: BillPage) {
  */
 export async function extractBill(pages: BillPage[], packs?: CategoryPack<any>[]): Promise<ExtractionResult> {
   if (pages.length === 0) throw new Error("extractBill: no pages");
-  const schema = packs ? mergedExtractionSchema(packs) : mergedExtractionSchema();
+  // Wire schema: sentinel values instead of nullables (API union-parameter
+  // limit); normalized back to nulls below.
+  const schema = packs ? mergedWireExtractionSchema(packs) : mergedWireExtractionSchema();
 
   const response = await anthropic().messages.parse({
     model: MODEL,
@@ -67,10 +70,11 @@ export async function extractBill(pages: BillPage[], packs?: CategoryPack<any>[]
     output_config: { format: zodOutputFormat(schema) },
   });
 
-  const extraction = response.parsed_output as MergedExtraction | null;
-  if (!extraction) {
+  const wire = response.parsed_output;
+  if (!wire) {
     throw new Error(`extraction parse failed (stop_reason=${response.stop_reason})`);
   }
+  const extraction: MergedExtraction = packs ? normalizeExtraction(wire, packs) : normalizeExtraction(wire);
   return {
     extraction,
     usage: usageFrom(response.usage),
