@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SUPPORTED_LOCALES } from "@bills/shared";
 import type { GuardedDecode } from "../src/guardrails.js";
-import { buildFollowUpButtons, buildSavingsMessages, buildSummaryMessage, t } from "../src/render-wa.js";
+import { buildFollowUpButtons, buildProviderWaLink, buildSavingsMessages, buildSummaryMessage, t } from "../src/render-wa.js";
 
 const guarded: GuardedDecode = {
   language: "es",
@@ -65,8 +65,26 @@ describe("render-wa", () => {
     expect(msgs[2]).toContain(t("es", "noNumber"));
   });
 
+  it("provider WhatsApp link: absent without directory hit, appended with preloaded localized draft when present", () => {
+    expect(buildProviderWaLink(guarded, "es")).toBeNull();
+    expect(buildSavingsMessages(guarded, "es")).toHaveLength(3);
+
+    const withWa: GuardedDecode = {
+      ...guarded,
+      providerWa: { providerName: "Movistar", waNumber: "+34 638 101 004", source: "https://comunidad.movistar.es/..." },
+    };
+    const link = buildProviderWaLink(withWa, "es");
+    expect(link).toMatch(/^https:\/\/wa\.me\/34638101004\?text=/);
+    expect(decodeURIComponent(link!.split("text=")[1]!)).toContain("cliente de Movistar");
+
+    const msgs = buildSavingsMessages(withWa, "es");
+    expect(msgs).toHaveLength(4); // intro + 2 items + provider CTA
+    expect(msgs[3]).toContain("wa.me/34638101004");
+    expect(msgs[3]).toContain("Movistar");
+  });
+
   it("every locale has every string (no silent english fallbacks)", () => {
-    const keys = ["fullBreakdown", "buttonsBody", "explainMore", "showSavings", "actOnThis", "savingsIntro", "unreadable", "analyzing", "gotPage"];
+    const keys = ["fullBreakdown", "buttonsBody", "explainMore", "showSavings", "actOnThis", "savingsIntro", "unreadable", "analyzing", "gotPage", "providerWaCta", "providerWaDraft"];
     for (const locale of SUPPORTED_LOCALES) {
       for (const key of keys) {
         const value = t(locale, key);

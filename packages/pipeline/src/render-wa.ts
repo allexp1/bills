@@ -1,5 +1,5 @@
 import type { Button } from "@bills/channel";
-import { formatMoney, type SupportedLocale } from "@bills/shared";
+import { buildWaLink, formatMoney, type SupportedLocale } from "@bills/shared";
 import type { GuardedDecode, GuardedSaving } from "./guardrails.js";
 
 /**
@@ -26,6 +26,9 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     thatsAll: "That's all",
     gotPage: "Got page {n} ✅ — send more pages, or tap when done.",
     analyzing: "Looks like that's everything — analyzing your bill now 🔎 (about a minute)",
+    providerWaCta: "💬 {provider} has official WhatsApp support — tap to open the chat with your message already typed:",
+    providerWaDraft:
+      "Hello! I'm a {provider} customer. I've been reviewing my latest bill and would like to know if there's a better plan, discount or offer available for me. Thank you!",
   },
   es: {
     fullBreakdown: "Desglose completo",
@@ -44,6 +47,9 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     thatsAll: "Es todo",
     gotPage: "Página {n} recibida ✅ — envía más páginas o pulsa al terminar.",
     analyzing: "Parece que está todo — analizando tu factura 🔎 (un minuto aprox.)",
+    providerWaCta: "💬 {provider} tiene atención oficial por WhatsApp — toca para abrir el chat con tu mensaje ya escrito:",
+    providerWaDraft:
+      "¡Hola! Soy cliente de {provider}. He estado revisando mi última factura y me gustaría saber si hay un plan, descuento u oferta mejor disponible para mí. ¡Gracias!",
   },
   fr: {
     fullBreakdown: "Détail complet",
@@ -62,6 +68,9 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     thatsAll: "C'est tout",
     gotPage: "Page {n} reçue ✅ — envoyez d'autres pages ou appuyez quand c'est fini.",
     analyzing: "Ça semble complet — analyse de votre facture en cours 🔎 (environ une minute)",
+    providerWaCta: "💬 {provider} propose un support officiel sur WhatsApp — appuyez pour ouvrir la discussion avec votre message déjà rédigé :",
+    providerWaDraft:
+      "Bonjour ! Je suis client de {provider}. En relisant ma dernière facture, j'aimerais savoir s'il existe un forfait, une remise ou une offre plus avantageuse pour moi. Merci !",
   },
   pt: {
     fullBreakdown: "Detalhe completo",
@@ -80,6 +89,9 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     thatsAll: "É tudo",
     gotPage: "Página {n} recebida ✅ — envie mais páginas ou toque quando terminar.",
     analyzing: "Parece estar tudo — a analisar a sua fatura 🔎 (cerca de um minuto)",
+    providerWaCta: "💬 A {provider} tem apoio oficial por WhatsApp — toque para abrir a conversa com a sua mensagem já escrita:",
+    providerWaDraft:
+      "Olá! Sou cliente da {provider}. Estive a rever a minha última fatura e gostaria de saber se há um plano, desconto ou oferta melhor disponível para mim. Obrigado!",
   },
   de: {
     fullBreakdown: "Vollständige Aufschlüsselung",
@@ -98,6 +110,9 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     thatsAll: "Das ist alles",
     gotPage: "Seite {n} erhalten ✅ — weitere Seiten senden oder tippen, wenn fertig.",
     analyzing: "Sieht vollständig aus — Rechnung wird analysiert 🔎 (ca. eine Minute)",
+    providerWaCta: "💬 {provider} hat offiziellen WhatsApp-Support — tippen Sie, um den Chat mit Ihrer fertigen Nachricht zu öffnen:",
+    providerWaDraft:
+      "Hallo! Ich bin Kunde bei {provider}. Ich habe meine letzte Rechnung geprüft und würde gerne wissen, ob es einen besseren Tarif, Rabatt oder ein besseres Angebot für mich gibt. Danke!",
   },
 };
 
@@ -140,6 +155,17 @@ export function buildFollowUpButtons(invoiceId: string, locale: SupportedLocale)
   };
 }
 
+/**
+ * The provider's official WhatsApp support, as a click-to-chat link with a
+ * localized ask-for-a-better-deal message pre-typed. Null when the curated
+ * directory has no source-confirmed number for this provider.
+ */
+export function buildProviderWaLink(guarded: GuardedDecode, locale: SupportedLocale): string | null {
+  if (!guarded.providerWa) return null;
+  const draft = t(locale, "providerWaDraft", { provider: guarded.providerWa.providerName });
+  return buildWaLink(guarded.providerWa.waNumber, draft);
+}
+
 /** "Show savings" flow: one message per item, verified numbers only. */
 export function buildSavingsMessages(guarded: GuardedDecode, locale: SupportedLocale): string[] {
   if (guarded.savings.length === 0) return [];
@@ -153,6 +179,12 @@ export function buildSavingsMessages(guarded: GuardedDecode, locale: SupportedLo
       ? `🏷 ${saving.offer.provider} — ${saving.offer.name} (${formatMoney({ amountMinor: saving.offer.estMonthlyCostMinor, currency: saving.currency }, locale)}/${t(locale, "perMonth").replace(/^\W+/, "")})${saving.offer.link ? `\n${saving.offer.link}` : ""}`
       : null;
     messages.push([amount, saving.explanation, offerLine, `➡️ ${saving.nextStep}`].filter(Boolean).join("\n"));
+  }
+  const providerLink = buildProviderWaLink(guarded, locale);
+  if (providerLink) {
+    messages.push(
+      `${t(locale, "providerWaCta", { provider: guarded.providerWa!.providerName })}\n${providerLink}`,
+    );
   }
   return messages;
 }

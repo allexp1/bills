@@ -38,6 +38,12 @@ export interface GuardedDecode {
   printedNextSteps: string[];
   savings: GuardedSaving[];
   explainMoreQueue: string[];
+  /**
+   * The bill's provider's official WhatsApp support/sales channel, when the
+   * curated directory has a source-confirmed number — rendered as a wa.me
+   * deep link with a ready-to-send message.
+   */
+  providerWa?: { providerName: string; waNumber: string; source: string };
 }
 
 export interface GuardrailReport {

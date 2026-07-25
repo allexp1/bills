@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { getPack } from "@bills/category-packs";
+import { getPack, lookupProviderWa } from "@bills/category-packs";
 import { db, encryptEnvelope, encryptJson, schema } from "@bills/db";
 import { decodeBill, extractBill, gatherOffers, type BillPage } from "@bills/llm";
 import { applyGuardrails, computeGotchaFacts, mintSummaryToken } from "@bills/pipeline";
@@ -113,6 +113,17 @@ export async function runBillPipeline(args: {
 
     await database.update(schema.invoices).set({ status: "guardrail" }).where(eq(schema.invoices.id, invoiceId));
     const { guarded, report } = applyGuardrails({ decode: decodeResult.decode, extraction, pack, offers, locale });
+
+    // If the provider has a source-confirmed official WhatsApp channel,
+    // attach it so both renderers can offer a preloaded wa.me link.
+    const providerWa = await lookupProviderWa(extraction.common.providerName, extraction.common.country, pack.id);
+    if (providerWa) {
+      guarded.providerWa = {
+        providerName: extraction.common.providerName ?? providerWa.name,
+        waNumber: providerWa.waNumber,
+        source: providerWa.source,
+      };
+    }
 
     await database.insert(schema.decodes).values({
       invoiceId,

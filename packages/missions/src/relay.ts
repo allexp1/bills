@@ -1,4 +1,4 @@
-import { redactRestrictedData, type RedactionSpan } from "@bills/shared";
+import { buildWaLink, redactRestrictedData, type RedactionSpan } from "@bills/shared";
 
 /**
  * Co-pilot relay: the Part-B actuator that is actually viable on WhatsApp.
@@ -14,9 +14,7 @@ import { redactRestrictedData, type RedactionSpan } from "@bills/shared";
 
 /** Deep link that opens the customer's chat with the provider, message pre-typed. */
 export function buildRelayLink(providerE164: string, message: string): string {
-  const digits = providerE164.replace(/[^\d]/g, "");
-  if (!digits) throw new Error("provider number required");
-  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  return buildWaLink(providerE164, message);
 }
 
 export type RelayRole = "assistant_draft" | "customer_sent" | "provider_reply" | "customer_note";

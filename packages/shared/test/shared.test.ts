@@ -3,6 +3,7 @@ import { ulid, ULID_REGEX } from "../src/ids.js";
 import { parseAmount, formatMoney, withinTolerance } from "../src/money.js";
 import { resolveLocale } from "../src/locale.js";
 import { redactForLog, redactRestrictedData, waHash } from "../src/redact.js";
+import { buildWaLink } from "../src/wa-link.js";
 
 describe("ulid", () => {
   it("produces 26-char sortable ids", () => {
@@ -65,5 +66,18 @@ describe("redaction", () => {
   it("redacts numeric codes only under OTP context", () => {
     expect(redactRestrictedData("code: 482913", { otpHint: true }).text).toContain("[OTP redacted]");
     expect(redactRestrictedData("total 482913", {}).text).toContain("482913");
+  });
+});
+
+describe("buildWaLink", () => {
+  it("strips formatting and URL-encodes the preloaded message", () => {
+    const link = buildWaLink("+34 607 100 100", "Hola! ¿Hay ofertas & descuentos?");
+    expect(link.startsWith("https://wa.me/34607100100?text=")).toBe(true);
+    expect(link).not.toContain("&d"); // & must be encoded, not a query separator
+    expect(decodeURIComponent(link.split("text=")[1]!)).toBe("Hola! ¿Hay ofertas & descuentos?");
+  });
+  it("omits text= without a message and rejects empty numbers", () => {
+    expect(buildWaLink("+34607100100")).toBe("https://wa.me/34607100100");
+    expect(() => buildWaLink("  ")).toThrow();
   });
 });

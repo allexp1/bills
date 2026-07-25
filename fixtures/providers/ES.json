@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Vodafone",
+    "aliases": ["Vodafone España", "Vodafone Espana", "Lowi"],
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+34607100100",
+    "source": "https://ayudacliente.vodafone.es/particulares/mi-vodafone/funcionamiento/contacta-con-vodafone-a-traves-de-whatsapp/",
+    "notes": "TOBi assistant, 24/7. English-language channel: +34607100800."
+  },
+  {
+    "name": "Movistar",
+    "aliases": ["Telefónica", "Telefonica"],
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+34638101004",
+    "source": "https://comunidad.movistar.es/kb/Gestiones/%C2%BFcu%C3%A1l-es-el-n%C3%BAmero-de-whatsapp-de-movistar/4734763",
+    "notes": "Official community KB; attended roughly 09:00–22:00."
+  },
+  {
+    "name": "Orange",
+    "aliases": ["Orange España", "Orange Espana"],
+    "categories": ["mobile", "broadband"],
+    "waNumber": "+34653850085",
+    "source": "https://ayuda.orange.es/particulares/movil/servicios/2628-contacta-con-atencion-al-cliente-de-orange-por-whatsapp-guarda-nuestro-numero-en-tu-agenda-653-85-00-85",
+    "notes": "24/7 per Orange help pages; provider asks customers to write from their Orange line."
+  }
+]
