@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@bills/db";
-import { buildProviderChatCta, verifySummaryToken } from "@bills/pipeline";
+import { buildProviderChatCta, t as tPipeline, verifySummaryToken } from "@bills/pipeline";
 import { formatMoney, resolveLocale, type SupportedLocale } from "@bills/shared";
 import { loadGuardedDecode } from "../../../server/decode-store.js";
 import { env } from "../../../server/env.js";
@@ -183,11 +183,30 @@ export default async function SummaryPage({ params }: { params: Promise<{ token:
               <p style={{ color: "var(--text-muted)", margin: "8px 0 0", fontSize: "0.85rem" }}>{s.pitchWebChatHint}</p>
             )}
           </section>
+          {pitch.targetMonthlyMinor !== null && (
+            <p style={{ margin: "10px 0 0", fontWeight: 600 }}>
+              {tPipeline(locale, "pitchGoal", {
+                amount: formatMoney({ amountMinor: pitch.targetMonthlyMinor, currency: pitch.currency }, locale),
+              })}
+            </p>
+          )}
           <details style={{ marginTop: 10 }}>
             <summary style={{ cursor: "pointer", fontWeight: 600 }}>📞 {s.pitchCallTitle}</summary>
             <section className="card" style={{ marginTop: 8 }}>
               <p>{pitch.callScript.opening}</p>
-              <p style={{ fontWeight: 600 }}>{pitch.callScript.ask}</p>
+              <p style={{ fontWeight: 600 }}>🗣 {pitch.callScript.openAsk}</p>
+              {pitch.callScript.onFirstOffer && (
+                <p>
+                  <b>{tPipeline(locale, "pitchOnOffer")}</b> {pitch.callScript.onFirstOffer}
+                </p>
+              )}
+              {pitch.callScript.pushHarder.length > 0 && (
+                <ol>
+                  {pitch.callScript.pushHarder.map((p, i) => (
+                    <li key={i}>{p}</li>
+                  ))}
+                </ol>
+              )}
               {pitch.callScript.evidence.length > 0 && (
                 <ul>
                   {pitch.callScript.evidence.map((e, i) => (
@@ -202,6 +221,9 @@ export default async function SummaryPage({ params }: { params: Promise<{ token:
                 </p>
               ))}
               <p>{pitch.callScript.closing}</p>
+              <p style={{ whiteSpace: "pre-wrap", color: "var(--text-muted)", fontSize: "0.88rem", marginTop: 12 }}>
+                {tPipeline(locale, "pitchTips")}
+              </p>
             </section>
           </details>
         </>

@@ -130,15 +130,18 @@ describe("render-wa", () => {
       providerChat: { providerName: "Movistar", channel: "whatsapp", waNumber: "+34638101004", source: "https://..." },
       pitch: {
         strategy: "competitor_anchor",
-        chatMessage: "Hola, soy cliente de Movistar. Rival ofrece lo mismo por 29,99 €. ¿Podéis igualarlo?",
+        chatMessage: "Hola, soy cliente de Movistar desde hace años. Rival ofrece lo mismo por 29,99 €. ¿Qué opciones tenéis para alguien como yo?",
         callScript: {
           opening: "Hola, llamo por mi tarifa.",
-          ask: "Quiero igualar 29,99 € al mes.",
+          openAsk: "¿Qué opciones tenéis para alguien como yo?",
+          onFirstOffer: "Gracias — ¿es lo mejor que podéis hacer?",
+          pushHarder: ["¿Qué más podéis hacer?", "¿Me pasáis con retención?"],
           evidence: ["Rival: Plan X por 29,99 €."],
           objections: [{ ifTheySay: "No es posible.", youSay: "Pásame con retención, por favor." }],
           closing: "Gracias.",
         },
         targetMonthlyMinor: 2999,
+        currency: "EUR",
       },
     };
     const msgs = buildPitchMessages(pitched, "es")!;
@@ -148,15 +151,20 @@ describe("render-wa", () => {
     // The deep link preloads the PITCH, not the generic draft:
     expect(decodeURIComponent(msgs[2]!.split("text=")[1]!)).toContain("Rival ofrece");
     expect(msgs[3]).toContain(t("es", "pitchCall"));
+    expect(msgs[3]).toContain(t("es", "pitchOnOffer"));
     expect(msgs[3]).toContain("retención");
+    // Final message: private goal (never said first) + evidence-based pro tips.
+    expect(msgs[4]).toContain("29,99");
+    expect(msgs[4]).toContain(t("es", "pitchTips").slice(0, 20));
   });
 
   it("pitch CTA on sms/web_chat channels degrades correctly", () => {
     const base = {
       strategy: "plan_fit" as const,
       chatMessage: "I'd like a better plan.",
-      callScript: { opening: "o", ask: "a", evidence: [], objections: [], closing: "c" },
+      callScript: { opening: "o", openAsk: "What can you do?", onFirstOffer: "Best you can do?", pushHarder: [], evidence: [], objections: [], closing: "c" },
       targetMonthlyMinor: null,
+      currency: "USD",
     };
     const sms: GuardedDecode = {
       ...guarded,

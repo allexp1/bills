@@ -36,13 +36,20 @@ export interface GuardedPitch {
   chatMessage: string;
   callScript: {
     opening: string;
-    ask: string;
+    /** Open extraction ask — code-enforced to carry no currency amounts. */
+    openAsk: string;
+    onFirstOffer: string;
+    pushHarder: string[];
     evidence: string[];
     objections: Array<{ ifTheySay: string; youSay: string }>;
     closing: string;
   };
-  /** Verified target price (minor units); null when the model's figure didn't ground. */
+  /**
+   * The customer's PRIVATE goal (minor units) — for judging offers, never
+   * said first. Null when the model's figure didn't ground.
+   */
   targetMonthlyMinor: number | null;
+  currency: string;
 }
 
 export interface GuardedDecode {
@@ -292,12 +299,19 @@ function guardPitch(
     if (!grounded) target = null;
   }
 
+  // The open ask must contain no currency amounts at all — naming a number
+  // there anchors the customer against a counterpart with a hidden discount
+  // menu. Enforced in code regardless of what the model wrote.
+  const openAsk = stripAmountSentences(clean(pitch.callScript.openAsk, "pitch:openAsk"), report);
+
   return {
     strategy: pitch.strategy,
     chatMessage,
     callScript: {
       opening: clean(pitch.callScript.opening, "pitch:opening"),
-      ask: clean(pitch.callScript.ask, "pitch:ask"),
+      openAsk,
+      onFirstOffer: clean(pitch.callScript.onFirstOffer, "pitch:onFirstOffer"),
+      pushHarder: pitch.callScript.pushHarder.map((p, i) => clean(p, `pitch:pushHarder:${i}`)).filter((p) => p.length > 0),
       evidence: pitch.callScript.evidence.map((e, i) => clean(e, `pitch:evidence:${i}`)).filter((e) => e.length > 0),
       objections: pitch.callScript.objections
         .map((o) => ({ ifTheySay: clean(o.ifTheySay, "pitch:objection"), youSay: clean(o.youSay, "pitch:objection") }))
@@ -305,7 +319,23 @@ function guardPitch(
       closing: clean(pitch.callScript.closing, "pitch:closing"),
     },
     targetMonthlyMinor: target,
+    currency,
   };
+}
+
+/** Remove sentences carrying any currency amount (used for the open ask, which must stay number-free). */
+function stripAmountSentences(text: string, report: GuardrailReport): string {
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const kept = sentences.filter((sentence) => {
+    if (AMOUNT_TOKEN.test(sentence)) {
+      AMOUNT_TOKEN.lastIndex = 0;
+      report.removedSentences.push({ where: "pitch:openAsk:self-anchor", sentence });
+      return false;
+    }
+    AMOUNT_TOKEN.lastIndex = 0;
+    return true;
+  });
+  return kept.join(" ");
 }
 
 /** Run every pack gotcha detector; results injected into the decode prompt as facts. */

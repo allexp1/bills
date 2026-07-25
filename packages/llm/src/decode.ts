@@ -5,7 +5,7 @@ import type { CommonFields } from "@bills/category-packs";
 import type { SupportedLocale } from "@bills/shared";
 import { MODEL, anthropic, usageFrom, type LlmUsage } from "./client.js";
 
-export const DECODE_PROMPT_VERSION = "decode-v2";
+export const DECODE_PROMPT_VERSION = "decode-v3";
 
 export const SavingsClaimSchema = z.object({
   leverId: z.string(),
@@ -24,16 +24,32 @@ export const NegotiationPitchSchema = z.object({
   /** The BILL's language — this text goes to the provider's local support. */
   language: z.string(),
   strategy: z.enum(["competitor_anchor", "plan_fit", "loyalty_retention"]),
-  /** Ready to send as-is via WhatsApp/SMS/chat. Keep under ~600 chars. */
+  /**
+   * Ready to send as-is via WhatsApp/SMS/chat. Keep under ~600 chars.
+   * Ends with an OPEN question ("what options do you have for someone like
+   * me?") — never a self-named target price.
+   */
   chatMessage: z.string(),
   callScript: z.object({
+    /** Rapport + identity (tenure, on-time payment) + specific problem statement. */
     opening: z.string(),
-    ask: z.string(),
+    /** The open extraction ask — NO numbers; makes the rep reveal the offer menu. */
+    openAsk: z.string(),
+    /** What to say the moment they make their first offer (thank + "is that the best you can do?" + silence). */
+    onFirstOffer: z.string(),
+    /** Tier-pushing lines in order: mirror/label, "what else can you do?", escalate to retention. */
+    pushHarder: z.array(z.string()).max(4),
+    /** Objective anchors ONLY: competitor offers and the provider's own new-customer price, each groundable. */
     evidence: z.array(z.string()),
     objections: z.array(z.object({ ifTheySay: z.string(), youSay: z.string() })).max(3),
+    /** Lock the deal: restate terms, confirmation number, note the promo end date. */
     closing: z.string(),
   }),
-  /** The monthly price to ask for, integer minor units; null if ungroundable. */
+  /**
+   * The customer's PRIVATE goal (integer minor units) — shown to the customer
+   * as "your number, don't say it first", judged against offers; NEVER
+   * written into chatMessage/openAsk. Null if ungroundable.
+   */
   targetMonthlyMinor: z.number().int().nullable(),
   basis: z.object({
     extractionPaths: z.array(z.string()),
@@ -88,12 +104,22 @@ Hard rules:
 6. End the summary thinking with: what the customer actually pays this cycle, and why.
 7. Keep the headline to one sentence a stressed person skims. Keep sections short; put depth into explainMoreQueue.
 
-Negotiation pitch (negotiationPitch):
-8. When there is a real negotiable opportunity (any available lever applies), also produce a pitch the CUSTOMER can send or say to their CURRENT provider to get a better price. If nothing is genuinely negotiable, set negotiationPitch to null.
-9. Strategy: a cheaper comparable offer exists → "competitor_anchor" (name the competitor, plan and its monthly price from comparisonOffers); paying for add-ons/capacity they don't use → "plan_fit"; contract ending or an out-of-contract price jump → "loyalty_retention".
-10. Write chatMessage and every callScript field in the BILL's language (extraction.common.billLanguage; fall back to the customer's locale) — a local support agent will read it. First person, as the customer. Polite, firm, specific: state how long they've been a customer if visible, name the exact target price, and ask for the retention/loyalty team if the first answer is no.
-11. chatMessage must stand alone, under 600 characters, and end with a concrete question. The callScript is for reading aloud on a phone call: short spoken sentences; evidence lines each cite one bill fact or one competitor offer; at most 3 objections with realistic agent pushback.
-12. Pitch grounding is rule 3 applied twice: every amount in the pitch must trace to basis.extractionPaths or a basis.comparisonOfferIds entry, and targetMonthlyMinor must equal a cited offer's price or a defensible bill-derived figure — otherwise leave it null and ask without a number. NEVER put account numbers, ID numbers or payment details in the pitch; "my account" suffices, the provider sees who is writing.`;
+Negotiation pitch (negotiationPitch) — follow the evidence-based method below; it is not optional style advice:
+8. When there is a real negotiable opportunity (any available lever applies), produce a pitch the CUSTOMER can send or say to their CURRENT provider. If nothing is genuinely negotiable, set negotiationPitch to null.
+9. Strategy: a cheaper comparable offer exists → "competitor_anchor"; paying for add-ons/capacity they don't use → "plan_fit"; contract ending or an out-of-contract price jump → "loyalty_retention".
+10. Language: chatMessage and every callScript field in the BILL's language (extraction.common.billLanguage; fall back to customer locale) — a local support agent reads it. First person, as the customer. Calm, warm, specific.
+11. NEVER NAME THE CUSTOMER'S PRICE. Retention reps work from a tiered discount menu the customer cannot see; naming a number caps the outcome at that number and reveals the walk-away point (information-asymmetry anchoring: the first-offer advantage inverts against an expert counterpart). So: chatMessage and openAsk contain NO price demand — they state tenure + the specific problem and end with an OPEN extraction question ("What options do you have for someone like me?" / "How am I supposed to make this work?"). targetMonthlyMinor is the customer's PRIVATE yardstick for judging offers, never text.
+12. The only numbers allowed in the pitch are OBJECTIVE EXTERNAL STANDARDS: a cited competitor offer's price, the provider's own advertised/new-customer price if present in the data, and the customer's own bill amounts — used as legitimate criteria ("[Competitor] offers the same for X; my bill says Y"), not as a demand.
+13. callScript is a negotiation sequence, in order:
+   - opening: rapport + identity ("customer for N years, always on time" — only if visible in the data) + the specific problem with exact bill figures.
+   - openAsk: the open extraction question. Zero numbers here.
+   - onFirstOffer: thank them, then "Is that the best you can do?" — and explicitly instruct the customer to stay silent after asking; people fill silence with concessions. Never accept the first offer.
+   - pushHarder (2-4 lines, escalating): a mirror/label ("The best you're showing? It seems like there might be loyalty promos not on my account…"), "What else can you do?", a no-oriented ask ("Would it be unreasonable to ask for what new customers pay?"), and finally the calm escalation: "Could you connect me with the retention team?" — retention/loyalty reps are scored on saves and hold the deepest discount tier. Mention cancelling ONLY when the data shows a genuinely switchable alternative (a cited competitor offer); reps call bluffs and may process the cancellation.
+   - evidence: the objective anchors from rule 12, one per line, deployed mid-call — not in the opening.
+   - objections: realistic rep pushback ("that promo is for new customers only", "this offer expires with this call") with responses; treat "today only" as pressure, not truth — retention offers regenerate.
+   - closing: accept only against the private target; restate the agreed terms, ask for a confirmation number, note when any promo ends.
+14. Pitch grounding is rule 3 applied twice: every amount must trace to basis.extractionPaths or a basis.comparisonOfferIds entry; targetMonthlyMinor must equal a cited offer's price or a defensible bill-derived figure — else null. NEVER put account numbers, ID numbers or payment details in the pitch; "my account" suffices, the provider sees who is writing.
+15. Category nuance: retention haggling works best for telecom/broadband/mobile. For energy bills in markets with regulated/published tariffs (notably the UK), suppliers cannot price-match or deviate — frame the pitch around switching or moving to the provider's best published tariff instead of asking for an off-menu discount.`;
 }
 
 export async function decodeBill(args: {

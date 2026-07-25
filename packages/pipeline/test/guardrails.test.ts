@@ -90,8 +90,10 @@ const basePitch: NegotiationPitch = {
   chatMessage:
     "Hola, soy cliente de Vodafone. Mi factura es de 57,98 € al mes y estoy pagando 12,98 € en servicios extra que no uso. ¿Podéis ofrecerme un plan mejor ajustado?",
   callScript: {
-    opening: "Hola, llamo por mi tarifa actual.",
-    ask: "Quiero pagar solo por lo que uso — ¿qué me podéis ofrecer?",
+    opening: "Hola, llamo por mi tarifa actual. Llevo años pagando puntualmente.",
+    openAsk: "¿Qué opciones tenéis para alguien como yo?",
+    onFirstOffer: "Gracias — ¿es lo mejor que podéis hacer? (y guarda silencio)",
+    pushHarder: ["¿Qué más podéis hacer?", "¿Podéis pasarme con el equipo de retención?"],
     evidence: ["Pago 45,00 € de plan base.", "Pago 12,98 € en extras."],
     objections: [{ ifTheySay: "Es la mejor tarifa disponible.", youSay: "Entonces quiero hablar con el equipo de retención." }],
     closing: "Gracias, quedo a la espera.",
@@ -199,6 +201,22 @@ describe("guarded pitch", () => {
     const { guarded } = run(withPitch(leaky));
     expect(guarded.pitch!.chatMessage).not.toContain("4111");
     expect(guarded.pitch!.chatMessage).toContain("[card number redacted]");
+  });
+
+  it("code-enforces a number-free open ask (no self-anchoring)", () => {
+    const anchored = structuredClone(basePitch);
+    anchored.callScript.openAsk = "¿Podéis dejarme la tarifa en 45,00 € al mes? ¿Qué opciones tenéis para alguien como yo?";
+    const { guarded, report } = run(withPitch(anchored));
+    // 45,00 is derivable (it's the base fee) — the sweep would keep it, but
+    // the open ask must carry NO amounts at all:
+    expect(guarded.pitch!.callScript.openAsk).not.toContain("45,00");
+    expect(guarded.pitch!.callScript.openAsk).toContain("opciones");
+    expect(report.removedSentences.some((r) => r.where === "pitch:openAsk:self-anchor")).toBe(true);
+  });
+
+  it("carries the bill currency for private-goal rendering", () => {
+    const { guarded } = run(withPitch(basePitch));
+    expect(guarded.pitch!.currency).toBe("EUR");
   });
 
   it("drops the pitch entirely when the chat message doesn't survive the sweep", () => {

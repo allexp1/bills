@@ -36,6 +36,10 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     pitchSmsCta: "📱 Send the message above by text to {number} — that's {provider}'s official support line.",
     pitchWebChatHint: "💻 Copy the message above, then paste it into {provider}'s official chat:",
     pitchCall: "Prefer to call? Read this:",
+    pitchOnOffer: "When they make an offer:",
+    pitchGoal: "🎯 Your private goal: {amount}/month. Let THEM make the first offer — never say this number first. Judge every offer against it.",
+    pitchTips:
+      "💡 Pro tips from professional negotiators:\n• Call by phone on a weekday if you can — phone agents unlock better discounts than chat.\n• Never accept the first offer. Ask \"Is that the best you can do?\" — then stay silent.\n• Offers vary by agent. If you get nothing, hang up and try again another day.\n• Only mention cancelling if you could genuinely switch — bluffs get called.\n• When any promo ends, call again. Renegotiating every 6–12 months is normal.",
   },
   es: {
     fullBreakdown: "Desglose completo",
@@ -64,6 +68,10 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     pitchSmsCta: "📱 Envía el mensaje de arriba por SMS al {number} — es la línea oficial de {provider}.",
     pitchWebChatHint: "💻 Copia el mensaje de arriba y pégalo en el chat oficial de {provider}:",
     pitchCall: "¿Prefieres llamar? Lee esto:",
+    pitchOnOffer: "Cuando te hagan una oferta:",
+    pitchGoal: "🎯 Tu objetivo privado: {amount}/mes. Deja que ELLOS hagan la primera oferta — nunca digas esta cifra primero. Compara cada oferta con ella.",
+    pitchTips:
+      "💡 Consejos de negociadores profesionales:\n• Llama por teléfono en día laborable — los agentes telefónicos tienen mejores descuentos que el chat.\n• Nunca aceptes la primera oferta. Pregunta \"¿Es lo mejor que puede hacer?\" — y guarda silencio.\n• Las ofertas dependen del agente. Si no consigues nada, cuelga y vuelve a llamar otro día.\n• Solo menciona darte de baja si de verdad podrías cambiarte — detectan los faroles.\n• Cuando termine una promoción, vuelve a llamar. Renegociar cada 6–12 meses es normal.",
   },
   fr: {
     fullBreakdown: "Détail complet",
@@ -92,6 +100,10 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     pitchSmsCta: "📱 Envoyez le message ci-dessus par SMS au {number} — la ligne officielle de {provider}.",
     pitchWebChatHint: "💻 Copiez le message ci-dessus, puis collez-le dans le chat officiel de {provider} :",
     pitchCall: "Vous préférez appeler ? Lisez ceci :",
+    pitchOnOffer: "Quand ils font une offre :",
+    pitchGoal: "🎯 Votre objectif privé : {amount}/mois. Laissez-LES faire la première offre — ne donnez jamais ce chiffre en premier. Jugez chaque offre par rapport à lui.",
+    pitchTips:
+      "💡 Conseils de négociateurs professionnels :\n• Appelez par téléphone en semaine — les conseillers au téléphone débloquent de meilleures remises que le chat.\n• N'acceptez jamais la première offre. Demandez « C'est vraiment votre meilleure offre ? » — puis silence.\n• Les offres dépendent du conseiller. Si vous n'obtenez rien, raccrochez et rappelez un autre jour.\n• Ne parlez de résilier que si vous pourriez vraiment partir — les bluffs sont démasqués.\n• Quand une promo se termine, rappelez. Renégocier tous les 6–12 mois est normal.",
   },
   pt: {
     fullBreakdown: "Detalhe completo",
@@ -120,6 +132,10 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     pitchSmsCta: "📱 Envie a mensagem acima por SMS para {number} — a linha oficial da {provider}.",
     pitchWebChatHint: "💻 Copie a mensagem acima e cole-a no chat oficial da {provider}:",
     pitchCall: "Prefere ligar? Leia isto:",
+    pitchOnOffer: "Quando fizerem uma oferta:",
+    pitchGoal: "🎯 O seu objetivo privado: {amount}/mês. Deixe que sejam ELES a fazer a primeira oferta — nunca diga este número primeiro. Compare cada oferta com ele.",
+    pitchTips:
+      "💡 Dicas de negociadores profissionais:\n• Ligue por telefone num dia útil — os agentes telefónicos têm melhores descontos do que o chat.\n• Nunca aceite a primeira oferta. Pergunte \"É mesmo o melhor que consegue fazer?\" — e fique em silêncio.\n• As ofertas variam por agente. Se não conseguir nada, desligue e volte a ligar noutro dia.\n• Só fale em cancelar se pudesse mesmo mudar — os bluffs são descobertos.\n• Quando uma promoção terminar, ligue de novo. Renegociar a cada 6–12 meses é normal.",
   },
   de: {
     fullBreakdown: "Vollständige Aufschlüsselung",
@@ -148,6 +164,10 @@ const STRINGS: Record<SupportedLocale, Record<string, string>> = {
     pitchSmsCta: "📱 Senden Sie die Nachricht oben per SMS an {number} — die offizielle Support-Nummer von {provider}.",
     pitchWebChatHint: "💻 Kopieren Sie die Nachricht oben und fügen Sie sie im offiziellen Chat von {provider} ein:",
     pitchCall: "Lieber anrufen? Lesen Sie das:",
+    pitchOnOffer: "Wenn ein Angebot kommt:",
+    pitchGoal: "🎯 Ihr privates Ziel: {amount}/Monat. Lassen Sie die GEGENSEITE das erste Angebot machen — nennen Sie diese Zahl nie zuerst. Messen Sie jedes Angebot daran.",
+    pitchTips:
+      "💡 Tipps von Profi-Verhandlern:\n• Rufen Sie werktags an — Telefon-Agenten haben bessere Rabatte als der Chat.\n• Nehmen Sie nie das erste Angebot an. Fragen Sie „Ist das wirklich Ihr bestes Angebot?“ — dann schweigen.\n• Angebote hängen vom Agenten ab. Bei nichts: auflegen, an einem anderen Tag erneut anrufen.\n• Kündigung nur erwähnen, wenn Sie wirklich wechseln könnten — Bluffs fliegen auf.\n• Wenn eine Aktion ausläuft: wieder anrufen. Alle 6–12 Monate neu zu verhandeln ist normal.",
   },
 };
 
@@ -273,12 +293,22 @@ export function buildPitchMessages(guarded: GuardedDecode, locale: SupportedLoca
     `📞 ${t(locale, "pitchCall")}`,
     "",
     s.opening,
-    s.ask,
+    `🗣 ${s.openAsk}`,
+    s.onFirstOffer ? `▶️ ${t(locale, "pitchOnOffer")} ${s.onFirstOffer}` : "",
+    ...s.pushHarder.map((p) => `↗ ${p}`),
     ...s.evidence.map((e) => `• ${e}`),
     ...s.objections.map((o) => `❓ "${o.ifTheySay}"\n→ ${o.youSay}`),
     s.closing,
   ].filter((line, i) => i < 2 || line.length > 0);
   messages.push(scriptLines.join("\n"));
+
+  const goal =
+    pitch.targetMonthlyMinor !== null
+      ? t(locale, "pitchGoal", {
+          amount: formatMoney({ amountMinor: pitch.targetMonthlyMinor, currency: pitch.currency }, locale),
+        })
+      : null;
+  messages.push([goal, t(locale, "pitchTips")].filter(Boolean).join("\n\n"));
 
   return messages;
 }

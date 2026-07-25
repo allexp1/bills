@@ -61,7 +61,9 @@ describe("DecodeOutputSchema", () => {
       chatMessage: "Hola…",
       callScript: {
         opening: "o",
-        ask: "a",
+        openAsk: "What options do you have for someone like me?",
+        onFirstOffer: "Is that the best you can do?",
+        pushHarder: ["What else can you do?"],
         evidence: ["e1"],
         objections: [{ ifTheySay: "no", youSay: "retención" }],
         closing: "c",
