@@ -1,7 +1,6 @@
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { z } from "zod";
 import {
-  mergedWireExtractionSchema,
-  normalizeExtraction,
+  mergedExtractionSchema,
   type CategoryPack,
   type MergedExtraction,
 } from "@bills/category-packs";
@@ -36,49 +35,77 @@ function contentBlockFor(page: BillPage) {
   };
 }
 
+/** Pull the first JSON object out of a text response (tolerates code fences/preamble). */
+function extractJsonObject(text: string): unknown {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new Error("no JSON object in response");
+  return JSON.parse(text.slice(start, end + 1));
+}
+
 /**
- * Single-pass vision extraction: all pages in one call, structured output
- * against the merged schema of every enabled pack (category auto-detected).
- * Pass `packs` to narrow to a single pack for the re-extract escape hatch.
+ * Single-pass vision extraction: all pages in one call, category auto-detected.
+ *
+ * Deliberately NOT structured outputs: the merged all-packs schema exceeds the
+ * API's grammar-size and union-parameter limits, and grows with every category
+ * pack. Instead the JSON Schema rides in the prompt and the result is Zod-
+ * validated in code, with one corrective retry on validation failure.
  */
 export async function extractBill(pages: BillPage[], packs?: CategoryPack<any>[]): Promise<ExtractionResult> {
   if (pages.length === 0) throw new Error("extractBill: no pages");
-  // Wire schema: sentinel values instead of nullables (API union-parameter
-  // limit); normalized back to nulls below.
-  const schema = packs ? mergedWireExtractionSchema(packs) : mergedWireExtractionSchema();
+  const schema = packs ? mergedExtractionSchema(packs) : mergedExtractionSchema();
+  const jsonSchema = JSON.stringify(z.toJSONSchema(schema, { target: "draft-7" }));
 
-  const response = await anthropic().messages.parse({
-    model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
-    system: [
-      {
-        type: "text",
-        text: extractionSystemPrompt(),
-        cache_control: { type: "ephemeral" }, // static across all extractions
-      },
-    ],
-    messages: [
-      {
-        role: "user",
-        content: [
-          ...pages.map(contentBlockFor),
-          { type: "text", text: "Extract this bill following your rules. All pages above belong to one bill." },
-        ],
-      },
-    ],
-    output_config: { format: zodOutputFormat(schema) },
-  });
+  const usageTotal: LlmUsage = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 };
+  let lastError = "";
 
-  const wire = response.parsed_output;
-  if (!wire) {
-    throw new Error(`extraction parse failed (stop_reason=${response.stop_reason})`);
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const instruction =
+      attempt === 1
+        ? `Extract this bill following your rules. All pages above belong to one bill.\n\nRespond with ONLY a JSON object (no prose, no code fences) that validates against this JSON Schema:\n${jsonSchema}`
+        : `Your previous JSON did not validate: ${lastError}\n\nRespond again with ONLY a corrected JSON object validating against the same schema.`;
+
+    const response = await anthropic().messages.create({
+      model: MODEL,
+      max_tokens: 16000,
+      thinking: { type: "adaptive" },
+      system: [
+        {
+          type: "text",
+          text: extractionSystemPrompt(),
+          cache_control: { type: "ephemeral" }, // static across all extractions
+        },
+      ],
+      messages: [
+        {
+          role: "user",
+          content: [...pages.map(contentBlockFor), { type: "text", text: instruction }],
+        },
+      ],
+    });
+
+    const u = usageFrom(response.usage);
+    usageTotal.inputTokens += u.inputTokens;
+    usageTotal.outputTokens += u.outputTokens;
+    usageTotal.cacheReadInputTokens += u.cacheReadInputTokens;
+    usageTotal.cacheCreationInputTokens += u.cacheCreationInputTokens;
+
+    const text = response.content
+      .filter((b): b is { type: "text"; text: string } & typeof b => b.type === "text")
+      .map((b) => b.text)
+      .join("\n");
+
+    try {
+      const parsed = schema.parse(extractJsonObject(text));
+      return {
+        extraction: parsed as MergedExtraction,
+        usage: usageTotal,
+        model: MODEL,
+        promptVersion: EXTRACTION_PROMPT_VERSION,
+      };
+    } catch (err) {
+      lastError = (err instanceof Error ? err.message : String(err)).slice(0, 1500);
+    }
   }
-  const extraction: MergedExtraction = packs ? normalizeExtraction(wire, packs) : normalizeExtraction(wire);
-  return {
-    extraction,
-    usage: usageFrom(response.usage),
-    model: MODEL,
-    promptVersion: EXTRACTION_PROMPT_VERSION,
-  };
+  throw new Error(`extraction JSON failed validation after retry: ${lastError.slice(0, 300)}`);
 }
