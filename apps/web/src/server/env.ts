@@ -27,6 +27,12 @@ export const env = {
   get waHashPepper() {
     return required("WA_HASH_PEPPER");
   },
+  get telegramBotToken() {
+    return required("TELEGRAM_BOT_TOKEN");
+  },
+  get telegramWebhookSecret() {
+    return required("TELEGRAM_WEBHOOK_SECRET");
+  },
 };
 
 /** Vercel injects the stable production hostname automatically. */

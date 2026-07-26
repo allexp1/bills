@@ -3,7 +3,7 @@ import { and, eq, isNull, or, isNotNull } from "drizzle-orm";
 import { db, schema } from "@bills/db";
 import { reminderDue, reminderDate } from "@bills/pipeline";
 import { resolveLocale, type SupportedLocale } from "@bills/shared";
-import { channel } from "../../../../server/wiring.js";
+import { channelFor } from "../../../../server/wiring.js";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
     const locale = resolveLocale(customer?.locale ?? null) as SupportedLocale;
 
     try {
-      await channel().sendTemplate(conversation.peerWaId, "promo_expiry", locale, [
+      await channelFor(conversation.peerWaId).sendTemplate(conversation.peerWaId, "promo_expiry", locale, [
         invoice.providerName ?? "…",
         reminderDate(invoice) ?? "…",
       ]);

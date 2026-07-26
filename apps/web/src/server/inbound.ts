@@ -13,7 +13,7 @@ import {
   type IntakeState,
 } from "@bills/pipeline";
 import { resolveLocale, waHash, type InboundEvent, type SupportedLocale } from "@bills/shared";
-import { channel, keys } from "./wiring.js";
+import { channelFor, keys } from "./wiring.js";
 import { enqueue } from "./jobs.js";
 import { env } from "./env.js";
 import { loadGuardedDecode } from "./decode-store.js";
@@ -69,11 +69,11 @@ export async function handleInbound(event: InboundEvent): Promise<void> {
   if (event.kind === "media") {
     if (state.phase !== "collecting") {
       if (await billQuotaExceeded(customer.id)) {
-        await channel().sendText(event.from, QUOTA_COPY[locale] ?? QUOTA_COPY.en!);
+        await channelFor(event.from).sendText(event.from, QUOTA_COPY[locale] ?? QUOTA_COPY.en!);
         return;
       }
     } else if (state.pageCount >= MAX_PAGES_PER_BILL) {
-      await channel().sendText(event.from, PAGE_LIMIT_COPY[locale] ?? PAGE_LIMIT_COPY.en!);
+      await channelFor(event.from).sendText(event.from, PAGE_LIMIT_COPY[locale] ?? PAGE_LIMIT_COPY.en!);
       machineEvent = { type: "button", buttonId: `collect_done:${state.invoiceId}` };
     }
   }
@@ -134,13 +134,13 @@ async function runEffect(ctx: EffectContext, effect: IntakeEffect): Promise<void
         .update(schema.invoices)
         .set({ pageCount: ctx.state.pageCount })
         .where(eq(schema.invoices.id, ctx.state.invoiceId));
-      await enqueue("ingest-media", { mediaObjectId: media!.id, waMediaId: ctx.event.mediaId });
+      await enqueue("ingest-media", { mediaObjectId: media!.id, waMediaId: ctx.event.mediaId, peerId: ctx.event.from });
       return;
     }
 
     case "ack_page":
       if (to) {
-        await channel().sendButtons(to, t(ctx.locale, "gotPage", { n: effect.pageNumber }), [
+        await channelFor(to).sendButtons(to, t(ctx.locale, "gotPage", { n: effect.pageNumber }), [
           { id: `collect_done:${ctx.state.invoiceId}`, title: t(ctx.locale, "thatsAll") },
         ]);
       }
@@ -172,7 +172,7 @@ async function runEffect(ctx: EffectContext, effect: IntakeEffect): Promise<void
 
     case "ask_delete_confirm":
       if (to) {
-        await channel().sendButtons(to, deleteConfirmCopy(ctx.locale), [
+        await channelFor(to).sendButtons(to, deleteConfirmCopy(ctx.locale), [
           { id: "delete_yes", title: "✅" },
           { id: "delete_no", title: "❌" },
         ]);
@@ -258,7 +258,7 @@ async function countExplainSent(conversationId: string, invoiceId: string): Prom
 }
 
 async function sendAndRecord(ctx: EffectContext, to: string, text: string, tag?: string): Promise<void> {
-  const result = await channel().sendText(to, text);
+  const result = await channelFor(to).sendText(to, text);
   await db()
     .insert(schema.messages)
     .values({

@@ -11,7 +11,7 @@ import { env } from "./env.js";
 export type JobName = "ingest-media" | "process-bill";
 
 export interface JobPayloads {
-  "ingest-media": { mediaObjectId: string; waMediaId: string };
+  "ingest-media": { mediaObjectId: string; waMediaId: string; peerId?: string };
   "process-bill": { conversationId: string; invoiceId: string; seq: number };
 }
 

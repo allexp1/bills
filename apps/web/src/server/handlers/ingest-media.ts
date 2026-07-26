@@ -2,14 +2,14 @@ import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db, encryptEnvelope, schema } from "@bills/db";
 import { ulid } from "@bills/shared";
-import { channel, keys } from "../wiring.js";
+import { channelFor, keys } from "../wiring.js";
 import { mediaStore } from "../media-store.js";
 
 /**
- * Download a WhatsApp media object (short-lived URL), envelope-encrypt the
- * bytes, and persist the ciphertext to the media store.
+ * Download a channel media object (WhatsApp short-lived URL or Telegram
+ * file), envelope-encrypt the bytes, and persist the ciphertext.
  */
-export async function ingestMedia(payload: { mediaObjectId: string; waMediaId: string }): Promise<void> {
+export async function ingestMedia(payload: { mediaObjectId: string; waMediaId: string; peerId?: string }): Promise<void> {
   const [row] = await db()
     .select()
     .from(schema.mediaObjects)
@@ -17,7 +17,7 @@ export async function ingestMedia(payload: { mediaObjectId: string; waMediaId: s
     .limit(1);
   if (!row || row.storageKey) return; // gone or already ingested (retry)
 
-  const { data, mimeType } = await channel().downloadMedia(payload.waMediaId);
+  const { data, mimeType } = await channelFor(payload.peerId ?? "").downloadMedia(payload.waMediaId);
   const sha256 = createHash("sha256").update(data).digest("hex");
   const envelope = encryptEnvelope(keys(), data);
   const ciphertext = Buffer.from(JSON.stringify(envelope));

@@ -9,7 +9,7 @@ import {
   type IntakeState,
 } from "@bills/pipeline";
 import { resolveLocale, type SupportedLocale } from "@bills/shared";
-import { channel, keys } from "../wiring.js";
+import { channelFor, keys } from "../wiring.js";
 import { mediaStore, purgeInvoiceMedia } from "../media-store.js";
 import { loadGuardedDecode } from "../decode-store.js";
 import { runBillPipeline } from "../run-bill-pipeline.js";
@@ -41,7 +41,7 @@ export async function processBill(payload: { conversationId: string; invoiceId: 
       .where(eq(schema.conversations.id, conversation.id));
     if (fired.effects.some((e) => e.effect === "send_processing_started")) {
       const locale = resolveLocale(await customerLocale(conversation.customerId)) as SupportedLocale;
-      await channel().sendText(conversation.peerWaId, t(locale, "analyzing"));
+      await channelFor(conversation.peerWaId).sendText(conversation.peerWaId, t(locale, "analyzing"));
     }
   } else if (state.phase !== "processing") {
     return; // delivered/failed/idle — nothing to do
@@ -76,9 +76,9 @@ export async function processBill(payload: { conversationId: string; invoiceId: 
     // Deliver: summary + buttons.
     const loaded = await loadGuardedDecode(payload.invoiceId);
     if (loaded) {
-      await channel().sendText(conversation.peerWaId, buildSummaryMessage(loaded.guarded, locale, result.summaryUrl));
+      await channelFor(conversation.peerWaId).sendText(conversation.peerWaId, buildSummaryMessage(loaded.guarded, locale, result.summaryUrl));
       const { body, buttons } = buildFollowUpButtons(payload.invoiceId, locale);
-      await channel().sendButtons(conversation.peerWaId, body, buttons);
+      await channelFor(conversation.peerWaId).sendButtons(conversation.peerWaId, body, buttons);
       await maybeAskRetentionConsent(conversation.customerId, conversation.peerWaId, locale);
     }
 
@@ -92,7 +92,7 @@ export async function processBill(payload: { conversationId: string; invoiceId: 
   } catch (err) {
     console.error(`[process-bill] ${payload.invoiceId} failed:`, err instanceof Error ? err.message.slice(0, 200) : "");
     await settleState(conversation.id, "processing_failed");
-    await channel().sendText(conversation.peerWaId, t(locale, "unreadable"));
+    await channelFor(conversation.peerWaId).sendText(conversation.peerWaId, t(locale, "unreadable"));
     throw err; // invoice status already set by the pipeline; QStash retries transient failures
   }
 }
@@ -103,7 +103,7 @@ async function maybeAskRetentionConsent(customerId: string | null, to: string, l
   try {
     const [customer] = await db().select().from(schema.customers).where(eq(schema.customers.id, customerId)).limit(1);
     if (!customer || customer.retentionPromptedAt) return;
-    await channel().sendButtons(to, t(locale, "retainAsk"), [
+    await channelFor(to).sendButtons(to, t(locale, "retainAsk"), [
       { id: "retain:yes", title: t(locale, "retainYesBtn") },
       { id: "retain:no", title: t(locale, "retainNoBtn") },
     ]);
