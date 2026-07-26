@@ -14,6 +14,13 @@ const STAGES = [
 ] as const;
 type StageKey = (typeof STAGES)[number]["key"];
 
+/** Best supported match for the browser's language; explanations default to it. */
+function browserLocale(): string {
+  if (typeof navigator === "undefined") return "en";
+  const lang = navigator.language.slice(0, 2).toLowerCase();
+  return ["en", "es", "fr", "pt", "de"].includes(lang) ? lang : "en";
+}
+
 /** Shared bill-upload form: public homepage (no secret) and /try (secret). */
 export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSecret?: boolean }) {
   const [busy, setBusy] = useState(false);
@@ -21,6 +28,7 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
   const [error, setError] = useState<string | null>(null);
   const [fileNames, setFileNames] = useState<string[]>([]);
   const [drag, setDrag] = useState(false);
+  const [translate, setTranslate] = useState(false);
   const [stage, setStage] = useState<StageKey | null>(null);
   const [pct, setPct] = useState(0);
   const trickle = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -149,28 +157,33 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
         )}
       </label>
 
-      <p style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text-muted)", fontSize: "0.9rem" }}>
-          Language
-          <select name="locale" defaultValue="en">
-            <option value="en">English</option>
-            <option value="es">Español</option>
-            <option value="fr">Français</option>
-            <option value="pt">Português</option>
-            <option value="de">Deutsch</option>
-          </select>
-        </label>
-      </p>
-
       <p>
         <label className="consent">
-          <input type="checkbox" name="translate" />
+          <input type="checkbox" name="translate" checked={translate} onChange={(e) => setTranslate(e.currentTarget.checked)} />
           <span>
-            Translate the bill's own text (line items, printed notes) into my selected language. Off by
-            default — your bill is shown in its original language.
+            Translate the bill's own text (line items, printed notes). Off by default — your bill is shown in
+            its original language.
           </span>
         </label>
       </p>
+
+      {translate ? (
+        <p style={{ margin: "0 0 12px 27px" }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text-muted)", fontSize: "0.9rem" }}>
+            Translate into
+            <select name="locale" defaultValue={browserLocale()}>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+              <option value="fr">Français</option>
+              <option value="pt">Português</option>
+              <option value="de">Deutsch</option>
+            </select>
+          </label>
+        </p>
+      ) : (
+        // Explanations still need a language — follow the browser silently.
+        <input type="hidden" name="locale" value={browserLocale()} />
+      )}
 
       <p>
         <label className="consent">
