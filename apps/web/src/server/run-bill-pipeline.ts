@@ -16,6 +16,8 @@ import { keys } from "./wiring.js";
 import { env } from "./env.js";
 import { loadGuardedDecode } from "./decode-store.js";
 
+export type PipelineStage = "extracting" | "researching" | "decoding" | "guardrails" | "finalizing";
+
 export interface PipelineRunResult {
   summaryUrl: string;
   category: string;
@@ -43,8 +45,17 @@ export async function runBillPipeline(args: {
   invoiceId?: string; // WhatsApp flow passes an existing collecting invoice
   pages: BillPage[];
   locale: SupportedLocale;
+  /** Stage callback for live progress UIs (web upload streams these). */
+  onProgress?: (stage: PipelineStage) => void;
 }): Promise<PipelineRunResult> {
   const { customerId, locale, pages } = args;
+  const progress = (stage: PipelineStage) => {
+    try {
+      args.onProgress?.(stage);
+    } catch {
+      // progress is cosmetic — never let it break the pipeline
+    }
+  };
   const database = db();
 
   let invoiceId = args.invoiceId;
@@ -64,6 +75,7 @@ export async function runBillPipeline(args: {
   try {
     await database.update(schema.invoices).set({ status: "extracting" }).where(eq(schema.invoices.id, invoiceId));
 
+    progress("extracting");
     const { extraction, usage, model, promptVersion } = await extractBill(pages);
     const pack = getPack(extraction.category);
     const [extractionRow] = await database
@@ -125,10 +137,12 @@ export async function runBillPipeline(args: {
     const priorSnapshots = await loadPriorSnapshots(customerId, invoiceId, extraction.common.providerName, pack.id);
 
     // Live market research (web search) merged with curated data — best-effort.
+    progress("researching");
     const fields = (extraction.category_fields as Record<string, unknown>)[pack.id];
     const offers = await gatherOffers(pack.id, fields, extraction.common);
     const gotchaFacts = computeGotchaFacts(pack, extraction);
 
+    progress("decoding");
     const decodeResult = await decodeBill({
       extraction,
       pack,
@@ -138,6 +152,7 @@ export async function runBillPipeline(args: {
       priorBills: priorSnapshots.map((p) => p.summary),
     });
 
+    progress("guardrails");
     await database.update(schema.invoices).set({ status: "guardrail" }).where(eq(schema.invoices.id, invoiceId));
     const { guarded, report } = applyGuardrails({
       decode: decodeResult.decode,
@@ -154,6 +169,7 @@ export async function runBillPipeline(args: {
     );
     if (history) guarded.history = history;
 
+    progress("finalizing");
     // Bill-view translation (LQA-verified) when the customer's language
     // differs from the bill's — best-effort, never blocks delivery.
     try {

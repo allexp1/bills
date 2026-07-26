@@ -1,33 +1,67 @@
 import { UploadForm } from "./upload-form.js";
 
 export const metadata = {
-  title: "Bills — understand your bill, pay less",
-  description: "Upload any recurring bill. Get a plain-language explanation, real numbers, and concrete ways to pay less.",
+  title: "SaveBills — understand every bill, pay less",
+  description:
+    "Upload any recurring bill. Get a plain-language explanation, real numbers, a ready-to-send negotiation pitch, and concrete ways to pay less.",
 };
 
 export default function Home() {
   return (
     <main className="page">
-      <section className="card hero" style={{ textAlign: "center" }}>
-        <h1 style={{ marginBottom: 6 }}>Understand your bill.<br />Pay less.</h1>
-        <p style={{ color: "var(--text-muted)", marginTop: 0 }}>
-          Upload a photo or PDF of any energy, internet or mobile bill. Our AI reads it,
-          explains every charge in plain language, researches current market offers, and
-          shows exactly where your money can come back — with real numbers only.
-        </p>
+      <header className="brandbar">
+        <span className="brandmark">✦</span>
+        <span className="brandname">SaveBills</span>
+      </header>
+
+      <h1 className="display">
+        Understand every bill.
+        <br />
+        <span className="grad">Pay less.</span>
+      </h1>
+      <p className="lede">
+        Drop in a photo or PDF of any energy, internet or mobile bill. AI reads it, explains every charge in
+        plain language, researches the market, and hands you a ready-to-send pitch for a better deal — with
+        real numbers only, verified against your own bill.
+      </p>
+
+      <section className="card">
         <UploadForm endpoint="/api/upload" />
       </section>
 
       <h2>How it works</h2>
-      <section className="card">
-        <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.9 }}>
-          <li>📄 <b>Upload</b> — bill photo(s) or PDF, any of 5 languages.</li>
-          <li>🔎 <b>Decode</b> — every line item explained; estimated readings, expiring promos and price jumps called out.</li>
-          <li>🌍 <b>Research</b> — the AI searches current offers from other providers in your country and compares them to what you pay.</li>
-          <li>💰 <b>Save</b> — concrete steps with verified amounts. Every number is checked in code against your bill's data; nothing is invented.</li>
-          <li>📊 <b>Track</b> — upload each month's bill and we show exactly what changed: total, new charges, price creep, your usage.</li>
-        </ol>
-      </section>
+      <div className="steps">
+        <div className="step">
+          <span className="tile t-indigo">📄</span>
+          <b>Upload</b>
+          <p>Bill photos or PDF — several pages fine, five languages supported.</p>
+        </div>
+        <div className="step">
+          <span className="tile t-blue">🔎</span>
+          <b>Decode</b>
+          <p>Every line item explained; estimated readings, expiring promos and price jumps called out.</p>
+        </div>
+        <div className="step">
+          <span className="tile t-teal">🌍</span>
+          <b>Research</b>
+          <p>Live search of current offers in your country, compared with what you actually use and pay.</p>
+        </div>
+        <div className="step">
+          <span className="tile t-green">💰</span>
+          <b>Save</b>
+          <p>Verified amounts and a ready-to-send negotiation pitch. Nothing is invented — every number is checked in code.</p>
+        </div>
+        <div className="step">
+          <span className="tile t-orange">📊</span>
+          <b>Track</b>
+          <p>Upload each month's bill and see exactly what changed: totals, new charges, price creep, usage.</p>
+        </div>
+        <div className="step">
+          <span className="tile t-purple">🌐</span>
+          <b>Translate</b>
+          <p>Bill in a language you don't speak? Read it natively — amounts quality-checked to stay exact.</p>
+        </div>
+      </div>
 
       <h2>Privacy</h2>
       <section className="card">
@@ -40,7 +74,10 @@ export default function Home() {
         </p>
       </section>
 
-      <p className="footer">Soon on WhatsApp: send your bill in a chat and get the same analysis back.</p>
+      <p className="footer">
+        Also on Telegram: <a href="https://t.me/savebills_bot">@savebills_bot</a> — send your bill in a chat,
+        get the same analysis back.
+      </p>
     </main>
   );
 }

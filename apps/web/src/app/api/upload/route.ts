@@ -73,22 +73,47 @@ export async function POST(req: NextRequest) {
       pages.push({ data, mimeType: file.type || (file.name.endsWith(".pdf") ? "application/pdf" : "image/jpeg") });
     }
 
-    const result = await runBillPipeline({ customerId: customer.id, pages, locale });
-    return NextResponse.json(result);
+    // Stream progress as NDJSON: one {stage} line per pipeline phase, then a
+    // final {summaryUrl,…} or {error,…} line. The client animates a real
+    // progress bar from these instead of staring at a spinner for 2 minutes.
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+        try {
+          const result = await runBillPipeline({
+            customerId: customer.id,
+            pages,
+            locale,
+            onProgress: (stage) => send({ stage }),
+          });
+          send(result);
+        } catch (err) {
+          if (err instanceof PipelineError && err.code === "unsupported_category") {
+            send({ error: "unsupported_category", detail: "We currently support energy, internet and mobile bills." });
+          } else {
+            console.error("[upload]", sanitize(err));
+            send({ error: "pipeline_error", detail: sanitize(err) });
+          }
+        } finally {
+          controller.close();
+        }
+      },
+    });
+    return new Response(stream, {
+      headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" },
+    });
   } catch (err) {
-    if (err instanceof PipelineError && err.code === "unsupported_category") {
-      return NextResponse.json(
-        { error: "unsupported_category", detail: "We currently support energy, internet and mobile bills." },
-        { status: 422 },
-      );
-    }
-    const detail = (err instanceof Error ? `${err.name}: ${err.message}` : String(err))
-      .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "postgres://[redacted]")
-      .replace(/sk-ant-[A-Za-z0-9_-]+/g, "sk-ant-[redacted]")
-      .slice(0, 300);
-    console.error("[upload]", detail);
-    return NextResponse.json({ error: "pipeline_error", detail }, { status: 500 });
+    console.error("[upload]", sanitize(err));
+    return NextResponse.json({ error: "pipeline_error", detail: sanitize(err) }, { status: 500 });
   }
+}
+
+function sanitize(err: unknown): string {
+  return (err instanceof Error ? `${err.name}: ${err.message}` : String(err))
+    .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "postgres://[redacted]")
+    .replace(/sk-ant-[A-Za-z0-9_-]+/g, "sk-ant-[redacted]")
+    .slice(0, 300);
 }
 
 async function upsertWebCustomer(webId: string) {

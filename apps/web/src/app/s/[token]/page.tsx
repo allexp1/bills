@@ -225,18 +225,14 @@ export default async function SummaryPage({ params }: { params: Promise<{ token:
           <h2>📣 {s.pitchTitle}</h2>
           <section className="card">
             <p style={{ color: "var(--text-muted)", margin: "0 0 10px", fontSize: "0.92rem" }}>{s.pitchBody}</p>
-            <blockquote
-              style={{
-                margin: "0 0 12px",
-                padding: "10px 12px",
-                borderLeft: "3px solid var(--accent, #4a9)",
-                background: "var(--bg-soft, rgba(127,127,127,0.08))",
-                borderRadius: 6,
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {pitch.chatMessage}
-            </blockquote>
+            <div className="terminal">
+              <div className="bar">
+                <span className="dot r" />
+                <span className="dot y" />
+                <span className="dot g" />
+              </div>
+              <div className="body">{pitch.chatMessage}</div>
+            </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
               <CopyButton text={pitch.chatMessage} label={s.pitchCopy!} copiedLabel={s.pitchCopied!} />
               {chatCta && (
