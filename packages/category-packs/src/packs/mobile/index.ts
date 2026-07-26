@@ -135,7 +135,7 @@ const lowerTier: SavingsLever<MobileFields> = {
     he: "מעבר למסלול שמתאים לשימוש האמיתי",
   },
   promptFragment:
-    "When usage data shows the customer uses far less than the plan allowance (e.g. 100 GB used of 800 GB), propose moving DOWN a tier with the CURRENT provider: a plan covering ~1.5-2x actual usage. This is the provider's own data about the customer — the strongest possible evidence; cite the dataUsedGb and dataAllowanceGb paths. Only attach a number if a concrete cheaper plan price exists in the data (a comparison offer with adequate allowance, or a smaller tier printed on the bill); otherwise describe the move qualitatively with the exact GB figures and no invented price.",
+    "When usage data shows the customer uses far less than the plan allowance (e.g. 100 GB used of 800 GB), propose moving DOWN a tier with the CURRENT provider: a plan covering ~1.5-2x actual usage. This is the provider's own data about the customer — the strongest possible evidence; cite the dataUsedGb and dataAllowanceGb paths. comparisonOffers whose provider IS the current provider are that provider's own current lineup — the ideal citation for this lever (real price, no switching needed). Only attach a number if such an offer (or a smaller tier printed on the bill) exists; otherwise describe the move qualitatively with the exact GB figures and no invented price.",
   applies: (f) => {
     const u = utilization(f);
     return u === null ? null : u < 0.5;

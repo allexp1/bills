@@ -41,26 +41,29 @@ export class WebSearchComparisonSource implements ComparisonSource {
         model: MODEL,
         max_tokens: 4000,
         thinking: { type: "adaptive" },
-        tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
+        tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }],
         system: [
           {
             type: "text",
-            text: `You are a market researcher for consumer ${this.category} plans. You find CURRENT, real offers a customer could actually switch to.
+            text: `You are a market researcher for consumer ${this.category} plans. You research TWO things, in this order:
+
+A. THE CUSTOMER'S CURRENT PROVIDER'S OWN LINEUP — visit/search the provider's own website for the plans it sells TODAY, especially cheaper tiers that still cover the customer's actual usage. Staying with the same operator on a smaller plan is often the easiest saving, and the provider's own advertised price is the strongest negotiation evidence. Report these as offers with provider = the current provider.
+B. COMPETITOR OFFERS — current, real offers from other providers in the customer's country the customer could switch to.
 
 Hard rules:
-1. Use web search (up to 3 searches) for current offers in the customer's country. Prefer provider websites and reputable comparison sites.
+1. Use web search (up to 5 searches). SEARCH IN THE COUNTRY'S LOCAL LANGUAGE — local-language queries find local plans; English queries often find nothing (e.g. Israeli mobile plans are found with Hebrew queries). Prefer provider websites, then reputable comparison sites.
 2. Report ONLY offers you actually found, each with the URL of the page where you saw the price. Never invent providers, plans, or prices. If you cannot find reliable current prices, return an empty list.
-3. estMonthlyCostMinor is the realistic ONGOING monthly cost in integer minor units of the customer's currency (e.g. cents). If there's an intro promo, use the ongoing price and mention the promo in notes.
-4. Only offers that plausibly match or beat the customer's current service level.
-4b. Names must be clean and single-script: use the provider's official Latin-script brand name when one exists ("Golan Telecom", not a Hebrew/Latin mix); keep plan names short and never mix scripts inside one name (write "300GB 5G plan", not a hybrid).
-5. After searching, respond with ONLY a JSON object (no prose): {"offers": [{"provider": string, "name": string, "estMonthlyCostMinor": integer, "currency": "${currency}", "link": string(url), "validUntil": string|null, "notes": string|null}]}`,
+3. estMonthlyCostMinor is the realistic ONGOING monthly cost in integer minor units of the customer's currency (e.g. cents/agorot). If there's an intro promo, use the ongoing price and mention the promo in notes.
+4. Only offers that cover the customer's ACTUAL usage (with reasonable headroom) — a plan sized to real usage beats a like-for-like clone of an oversized one.
+5. Names must be clean and single-script: use the provider's official Latin-script brand name when one exists ("Golan Telecom", not a Hebrew/Latin mix); keep plan names short and never mix scripts inside one name (write "300GB 5G plan", not a hybrid).
+6. After searching, respond with ONLY a JSON object (no prose): {"offers": [{"provider": string, "name": string, "estMonthlyCostMinor": integer, "currency": "${currency}", "link": string(url), "validUntil": string|null, "notes": string|null}]}`,
             cache_control: { type: "ephemeral" },
           },
         ],
         messages: [
           {
             role: "user",
-            content: `Country: ${country}. Currency: ${currency}. Category: ${this.category}.\nCustomer's current service:\n${currentPlan}\n\nFind up to 5 better offers.`,
+            content: `Country: ${country}. Currency: ${currency}. Category: ${this.category}.\nCustomer's current service:\n${currentPlan}\n\nFirst the current provider's own cheaper/current plans, then up to 5 competitor offers.`,
           },
         ],
       });
@@ -75,9 +78,10 @@ Hard rules:
       const parsed = WireOffersSchema.safeParse(JSON.parse(text.slice(start, end + 1)));
       if (!parsed.success) return [];
 
-      return parsed.data.offers
-        .filter((o) => o.currency === currency)
-        .slice(0, 5)
+      const usable = parsed.data.offers.filter((o) => o.currency === currency);
+      console.log(`[comparison-search] ${this.category}/${country}: ${parsed.data.offers.length} found, ${usable.length} in ${currency}`);
+      return usable
+        .slice(0, 8)
         .map((o, i) => ({
           id: `web-${this.category}-${i}`,
           provider: o.provider,
