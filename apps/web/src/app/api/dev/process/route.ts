@@ -42,7 +42,12 @@ export async function POST(req: NextRequest) {
       .values({ waId: tryId, waHash: waHash(tryId, env.waHashPepper), locale })
       .returning();
 
-    const result = await runBillPipeline({ customerId: customer!.id, pages, locale });
+    const result = await runBillPipeline({
+      customerId: customer!.id,
+      pages,
+      locale,
+      translate: form.get("translate") === "on",
+    });
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof PipelineError && err.code === "unsupported_category") {

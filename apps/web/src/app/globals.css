@@ -276,11 +276,9 @@ h2 {
   font-weight: 650;
 }
 .hero .total {
-  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   font-size: 2.7rem;
-  font-weight: 600;
+  font-weight: 650;
   margin: 4px 0 2px;
-  font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
 .hero .due {
@@ -290,6 +288,59 @@ h2 {
 .headline {
   font-size: 1.05rem;
   margin: 14px 0 0;
+}
+
+/* ---------- at-a-glance dashboard ---------- */
+
+.statgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+}
+.stat .label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  margin-bottom: 2px;
+}
+.stat .value {
+  display: block;
+  font-size: 1.55rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.stat .sub {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.meter {
+  margin-top: 14px;
+}
+.meter .meter-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  overflow: hidden;
+}
+.meter .meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand);
+  min-width: 6px;
+}
+.meter .meter-caption {
+  margin: 7px 0 0;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+/* Bidi isolation for text that may come from an RTL bill (Hebrew, Arabic):
+   dir="auto" on the element does the isolation; this keeps inline flow tidy. */
+[dir="auto"] {
+  unicode-bidi: isolate;
 }
 
 /* ---------- line items ---------- */

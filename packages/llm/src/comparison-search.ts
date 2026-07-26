@@ -52,6 +52,7 @@ Hard rules:
 2. Report ONLY offers you actually found, each with the URL of the page where you saw the price. Never invent providers, plans, or prices. If you cannot find reliable current prices, return an empty list.
 3. estMonthlyCostMinor is the realistic ONGOING monthly cost in integer minor units of the customer's currency (e.g. cents). If there's an intro promo, use the ongoing price and mention the promo in notes.
 4. Only offers that plausibly match or beat the customer's current service level.
+4b. Names must be clean and single-script: use the provider's official Latin-script brand name when one exists ("Golan Telecom", not a Hebrew/Latin mix); keep plan names short and never mix scripts inside one name (write "300GB 5G plan", not a hybrid).
 5. After searching, respond with ONLY a JSON object (no prose): {"offers": [{"provider": string, "name": string, "estMonthlyCostMinor": integer, "currency": "${currency}", "link": string(url), "validUntil": string|null, "notes": string|null}]}`,
             cache_control: { type: "ephemeral" },
           },

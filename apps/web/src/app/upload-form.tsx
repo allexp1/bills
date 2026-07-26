@@ -164,6 +164,16 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
 
       <p>
         <label className="consent">
+          <input type="checkbox" name="translate" />
+          <span>
+            Translate the bill's own text (line items, printed notes) into my selected language. Off by
+            default — your bill is shown in its original language.
+          </span>
+        </label>
+      </p>
+
+      <p>
+        <label className="consent">
           <input type="checkbox" name="retain" />
           <span>
             Keep my decoded bill data (encrypted — never the images) so my future bills can be compared month to

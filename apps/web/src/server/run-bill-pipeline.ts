@@ -47,6 +47,8 @@ export async function runBillPipeline(args: {
   locale: SupportedLocale;
   /** Stage callback for live progress UIs (web upload streams these). */
   onProgress?: (stage: PipelineStage) => void;
+  /** Translate the bill's own text into the customer's language — OPT-IN: bill language is the default. */
+  translate?: boolean;
 }): Promise<PipelineRunResult> {
   const { customerId, locale, pages } = args;
   const progress = (stage: PipelineStage) => {
@@ -170,10 +172,10 @@ export async function runBillPipeline(args: {
     if (history) guarded.history = history;
 
     progress("finalizing");
-    // Bill-view translation (LQA-verified) when the customer's language
-    // differs from the bill's — best-effort, never blocks delivery.
+    // Bill-view translation (LQA-verified) — only when the customer asked
+    // for it; the bill's own language is the default. Best-effort.
     try {
-      const translation = await translateBillView({ extraction, targetLanguage: locale });
+      const translation = args.translate ? await translateBillView({ extraction, targetLanguage: locale }) : null;
       if (translation) {
         guarded.translation = {
           language: translation.language,

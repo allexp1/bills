@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
             customerId: customer.id,
             pages,
             locale,
+            translate: form.get("translate") === "on",
             onProgress: (stage) => send({ stage }),
           });
           send(result);
