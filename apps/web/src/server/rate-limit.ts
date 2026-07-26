@@ -8,14 +8,21 @@ import { db, schema } from "@bills/db";
  */
 export const MAX_BILLS_PER_DAY = Number(process.env.MAX_BILLS_PER_DAY ?? 10);
 export const MAX_PAGES_PER_BILL = Number(process.env.MAX_PAGES_PER_BILL ?? 10);
+/**
+ * A failed analysis is our problem, not the customer's — it must not burn
+ * their daily allowance. Attempts are still bounded (a failure costs us a
+ * vision call), just at a looser ceiling.
+ */
+const ATTEMPT_MULTIPLIER = 3;
 
 export async function billQuotaExceeded(customerId: string): Promise<boolean> {
   const since = new Date(Date.now() - 24 * 3600 * 1000);
   const rows = await db()
-    .select({ id: schema.invoices.id })
+    .select({ status: schema.invoices.status })
     .from(schema.invoices)
     .where(and(eq(schema.invoices.customerId, customerId), gte(schema.invoices.createdAt, since)));
-  return rows.length >= MAX_BILLS_PER_DAY;
+  const successful = rows.filter((r) => r.status !== "failed").length;
+  return successful >= MAX_BILLS_PER_DAY || rows.length >= MAX_BILLS_PER_DAY * ATTEMPT_MULTIPLIER;
 }
 
 export const QUOTA_COPY: Record<string, string> = {
