@@ -1,4 +1,5 @@
 import { UploadForm } from "./upload-form.js";
+import { IconChart, IconFileUp, IconGlobe, IconLanguages, IconSearch, IconSpark, IconTrendDown } from "./icons.js";
 
 export const metadata = {
   title: "SaveBills — understand every bill, pay less",
@@ -10,7 +11,9 @@ export default function Home() {
   return (
     <main className="page">
       <header className="brandbar">
-        <span className="brandmark">✦</span>
+        <span className="brandmark">
+          <IconSpark size={16} />
+        </span>
         <span className="brandname">SaveBills</span>
       </header>
 
@@ -32,32 +35,44 @@ export default function Home() {
       <h2>How it works</h2>
       <div className="steps">
         <div className="step">
-          <span className="tile t-indigo">📄</span>
+          <span className="tile t-indigo">
+            <IconFileUp />
+          </span>
           <b>Upload</b>
           <p>Bill photos or PDF — several pages fine, five languages supported.</p>
         </div>
         <div className="step">
-          <span className="tile t-blue">🔎</span>
+          <span className="tile t-blue">
+            <IconSearch />
+          </span>
           <b>Decode</b>
           <p>Every line item explained; estimated readings, expiring promos and price jumps called out.</p>
         </div>
         <div className="step">
-          <span className="tile t-teal">🌍</span>
+          <span className="tile t-teal">
+            <IconGlobe />
+          </span>
           <b>Research</b>
           <p>Live search of current offers in your country, compared with what you actually use and pay.</p>
         </div>
         <div className="step">
-          <span className="tile t-green">💰</span>
+          <span className="tile t-green">
+            <IconTrendDown />
+          </span>
           <b>Save</b>
           <p>Verified amounts and a ready-to-send negotiation pitch. Nothing is invented — every number is checked in code.</p>
         </div>
         <div className="step">
-          <span className="tile t-orange">📊</span>
+          <span className="tile t-orange">
+            <IconChart />
+          </span>
           <b>Track</b>
           <p>Upload each month's bill and see exactly what changed: totals, new charges, price creep, usage.</p>
         </div>
         <div className="step">
-          <span className="tile t-purple">🌐</span>
+          <span className="tile t-purple">
+            <IconLanguages />
+          </span>
           <b>Translate</b>
           <p>Bill in a language you don't speak? Read it natively — amounts quality-checked to stay exact.</p>
         </div>

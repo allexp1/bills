@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { IconUpload } from "./icons.js";
 
 /** Pipeline stages streamed by /api/upload, with display copy and target %. */
 const STAGES = [
@@ -123,7 +124,9 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
           }
         }}
       >
-        <span className="dz-icon">📄</span>
+        <span className="dz-icon">
+          <IconUpload size={26} />
+        </span>
         <b>Drop your bill here, or tap to choose</b>
         <div className="dz-hint">Photos or PDF · several pages fine · max 15 MB</div>
         <input
@@ -147,8 +150,8 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
       </label>
 
       <p style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <label>
-          🌐{" "}
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text-muted)", fontSize: "0.9rem" }}>
+          Language
           <select name="locale" defaultValue="en">
             <option value="en">English</option>
             <option value="es">Español</option>

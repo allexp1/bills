@@ -205,9 +205,11 @@ h1.display .grad {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.15rem;
   margin-bottom: 10px;
   color: #fff;
+}
+.step .tile svg {
+  display: block;
 }
 .tile.t-indigo {
   background: linear-gradient(135deg, #7c78f0, #5b57e6);
@@ -460,9 +462,10 @@ table.items .note {
   display: none;
 }
 .dropzone .dz-icon {
-  font-size: 1.6rem;
-  display: block;
-  margin-bottom: 6px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+  color: var(--brand);
 }
 .dropzone .dz-hint {
   color: var(--text-muted);
