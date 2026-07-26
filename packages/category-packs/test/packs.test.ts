@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CommonFields } from "../src/common-schema.js";
 import { allPacks, mergedExtractionSchema } from "../src/registry.js";
 import { broadbandPack, type BroadbandFields } from "../src/packs/broadband/index.js";
-import { mobilePack, type MobileFields } from "../src/packs/mobile/index.js";
+import { mobilePack, parseGb, type MobileFields } from "../src/packs/mobile/index.js";
 import { energyPack, type EnergyFields } from "../src/packs/energy/index.js";
 import type { SavingsClaim } from "../src/pack.js";
 
@@ -346,5 +346,27 @@ describe("new savings angles", () => {
     expect(lever.applies!({ ...twoLines, lines: [twoLines.lines[0]!] }, common())).toBe(false);
     expect(lever.validate(claim({ leverId: "mobile_consolidate_lines", estimatedSavingMinor: 1000 }), twoLines, common()).verdict).toBe("flagged");
     expect(lever.nextStep(twoLines, common(), "en")).toContain("2 lines");
+  });
+});
+
+describe("parseGb is unit-aware", () => {
+  it("normalizes MB-printed usage against GB allowances (the 20182 MB bug)", () => {
+    expect(parseGb("20182.039 MB")).toBeCloseTo(19.709, 2);
+    expect(parseGb("800GB")).toBe(800);
+    // 20182 MB of 800 GB is ~2.5%, not 100%:
+    expect(parseGb("20182.039 MB")! / parseGb("800GB")!).toBeLessThan(0.03);
+  });
+
+  it("handles separators, TB/KB, French and Hebrew units, unlimited", () => {
+    expect(parseGb("20,182 MB")).toBeCloseTo(19.709, 2);
+    expect(parseGb("102,4 GB")).toBeCloseTo(102.4, 3);
+    expect(parseGb("1.5 TB")).toBe(1536);
+    expect(parseGb("512 Mo")).toBeCloseTo(0.5, 3);
+    expect(parseGb("50 Go")).toBe(50);
+    expect(parseGb("300 ג'יגה")).toBe(300);
+    expect(parseGb("ללא הגבלה")).toBe(Infinity);
+    expect(parseGb("unlimited")).toBe(Infinity);
+    expect(parseGb(null)).toBeNull();
+    expect(parseGb("no digits")).toBeNull();
   });
 });

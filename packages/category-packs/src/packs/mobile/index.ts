@@ -29,12 +29,44 @@ export const MobileFieldsSchema = z.object({
 });
 export type MobileFields = z.infer<typeof MobileFieldsSchema>;
 
-/** Parse a printed data quantity: "102,4 GB" → 102.4; unlimited → Infinity; unparseable → null. */
+/** Locale-safe loose number parse: "20182.039", "20.182,04", "1,234.56", "102,4". */
+function parseNumberLoose(raw: string): number | null {
+  let s = raw.trim().replace(/[\s ]/g, "");
+  const lastComma = s.lastIndexOf(",");
+  const lastDot = s.lastIndexOf(".");
+  if (lastComma !== -1 && lastDot !== -1) {
+    // Both present: the later one is the decimal separator.
+    s = lastComma > lastDot ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
+  } else if (lastComma !== -1) {
+    // Only commas: thousands pattern ("20,182") vs decimal ("102,4").
+    s = /^\d{1,3}(,\d{3})+$/.test(s) ? s.replace(/,/g, "") : s.replace(",", ".");
+  }
+  const n = Number.parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Parse a printed data quantity into GB — UNIT-AWARE: bills routinely print
+ * usage in MB and the allowance in GB ("20182.039 MB" of "800GB"), and
+ * treating both as the same unit inflates utilization ~1000×.
+ * Handles GB/MB/TB/KB, French Go/Mo, Hebrew ג׳יגה/מגה; unlimited → Infinity.
+ */
 export function parseGb(printed: string | null): number | null {
   if (!printed) return null;
-  if (/unlim|ilimitad|illimit|unbegrenzt|sin l[ií]mite/i.test(printed)) return Infinity;
-  const m = printed.replace(",", ".").match(/\d+(?:\.\d+)?/);
-  return m ? Number.parseFloat(m[0]) : null;
+  if (/unlim|ilimitad|illimit|unbegrenzt|sin l[ií]mite|ללא הגבלה/i.test(printed)) return Infinity;
+  const m = printed.match(/\d[\d.,\s ]*/);
+  if (!m) return null;
+  const value = parseNumberLoose(m[0]);
+  if (value === null) return null;
+
+  const unit = /tb|טרה/i.test(printed)
+    ? 1024
+    : /mb|\bmo\b|mega|מגה|מ["׳']?ב/i.test(printed)
+      ? 1 / 1024
+      : /kb|קילו/i.test(printed)
+        ? 1 / (1024 * 1024)
+        : 1; // GB / Go / ג׳יגה / unit omitted — GB is the printed default
+  return value * unit;
 }
 
 /** used/allowance when both are known and allowance is finite; null otherwise. */
@@ -54,6 +86,7 @@ const removeAddons: SavingsLever<MobileFields> = {
     fr: "Résilier les options inutilisées",
     pt: "Cancelar serviços extra não usados",
     de: "Ungenutzte Zusatzoptionen kündigen",
+    he: "ביטול שירותים נלווים שאינם בשימוש",
   },
   promptFragment:
     "For recurring add-ons, propose cancelling ones that look unused or duplicated. The saving is the SUM of the cited add-on amounts — cite each add-on's amount path individually.",
@@ -84,6 +117,7 @@ const removeAddons: SavingsLever<MobileFields> = {
       fr: `Répondez « Agir » et nous demandons à ${provider} de les retirer — ou faites-le dans l'app ${provider}, rubrique options.`,
       pt: `Responda "Agir" e pedimos à ${provider} para os remover — ou faça-o na app da ${provider}, em serviços.`,
       de: `Antworten Sie "Handeln" und wir bitten ${provider} um die Kündigung — oder erledigen Sie es in der ${provider}-App unter Optionen.`,
+      he: `השיבו "לפעולה" ונבקש מ־${provider} להסיר אותם — או עשו זאת באפליקציה של ${provider} תחת שירותים.`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -98,6 +132,7 @@ const lowerTier: SavingsLever<MobileFields> = {
     fr: "Passer à un forfait adapté à votre usage réel",
     pt: "Descer para um plano ajustado ao seu uso real",
     de: "In einen Tarif wechseln, der zur echten Nutzung passt",
+    he: "מעבר למסלול שמתאים לשימוש האמיתי",
   },
   promptFragment:
     "When usage data shows the customer uses far less than the plan allowance (e.g. 100 GB used of 800 GB), propose moving DOWN a tier with the CURRENT provider: a plan covering ~1.5-2x actual usage. This is the provider's own data about the customer — the strongest possible evidence; cite the dataUsedGb and dataAllowanceGb paths. Only attach a number if a concrete cheaper plan price exists in the data (a comparison offer with adequate allowance, or a smaller tier printed on the bill); otherwise describe the move qualitatively with the exact GB figures and no invented price.",
@@ -122,6 +157,7 @@ const lowerTier: SavingsLever<MobileFields> = {
       fr: `Vous avez utilisé ${used} sur ${allowance}. Demandez à ${provider} quels forfaits inférieurs couvrent votre usage réel — sans annoncer de prix, laissez-les lister les paliers.`,
       pt: `Usou ${used} do seu plafond de ${allowance}. Pergunte à ${provider} que planos inferiores cobrem o seu uso real — não diga um preço, deixe-os listar os escalões.`,
       de: `Sie haben ${used} von ${allowance} verbraucht. Fragen Sie ${provider}, welche kleineren Tarife Ihre echte Nutzung abdecken — nennen Sie keinen Preis, lassen Sie sich die Stufen auflisten.`,
+      he: `השתמשתם ב־${used} מתוך ${allowance}. שאלו את ${provider} אילו מסלולים קטנים יותר מכסים את השימוש האמיתי שלכם — אל תגידו מחיר, תנו להם למנות את המסלולים.`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -136,6 +172,7 @@ const consolidateLines: SavingsLever<MobileFields> = {
     fr: "Regrouper vos lignes dans une offre famille/multi-lignes",
     pt: "Juntar as suas linhas num plano familiar/multilinha",
     de: "Ihre Anschlüsse in einem Familien-/Mehrfachtarif bündeln",
+    he: "איחוד הקווים במסלול משפחתי/מרובה קווים",
   },
   promptFragment:
     "The bill carries several lines billed separately. Multi-line/family plans usually price additional lines far below standalone ones. Only attach a number if a cited comparison offer covers all the lines; otherwise qualitative — name the line count and each line's amount from the bill.",
@@ -156,6 +193,7 @@ const consolidateLines: SavingsLever<MobileFields> = {
       fr: `Vous payez ${n} lignes séparément. Demandez à ${provider} le prix de leurs offres multi-lignes/famille pour l'ensemble — laissez-les lister les options.`,
       pt: `Está a pagar ${n} linhas em separado. Pergunte à ${provider} quanto custariam os planos multilinha/familiares para todas — deixe-os listar as opções.`,
       de: `Sie zahlen ${n} Anschlüsse einzeln. Fragen Sie ${provider}, was ein Mehrfach-/Familientarif für alle kosten würde — lassen Sie sich die Optionen auflisten.`,
+      he: `אתם משלמים על ${n} קווים בנפרד. שאלו את ${provider} כמה יעלה מסלול משפחתי/מרובה קווים לכולם — תנו להם למנות את האפשרויות.`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -170,6 +208,7 @@ const rightsizePlan: SavingsLever<MobileFields> = {
     fr: "Passer à un forfait mieux tarifé",
     pt: "Mudar para um plano com melhor preço",
     de: "Zu einem günstigeren Tarif wechseln",
+    he: "מעבר למסלול במחיר טוב יותר",
   },
   promptFragment:
     "If a comparison plan beats the current base fee, propose it citing the offer id — but ONLY when the offer's known conditions cover the customer's actual usage (allowance comfortably above dataUsedGb). Without comparison data, describe the lever qualitatively — no number.",
@@ -184,6 +223,7 @@ const rightsizePlan: SavingsLever<MobileFields> = {
       fr: `Répondez « Agir » et nous vous aidons — la portabilité conserve votre numéro.`,
       pt: `Responda "Agir" e ajudamos na mudança — a portabilidade mantém o seu número.`,
       de: `Antworten Sie "Handeln" und wir helfen beim Wechsel — Ihre Nummer nehmen Sie mit.`,
+      he: `השיבו "לפעולה" ונעזור במעבר — ניוד מספר שומר על המספר שלכם.`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -192,7 +232,7 @@ const rightsizePlan: SavingsLever<MobileFields> = {
 export const mobilePack: CategoryPack<MobileFields> = {
   id: "mobile",
   version: "0.2.0",
-  displayName: { en: "Mobile", es: "Móvil", fr: "Mobile", pt: "Telemóvel", de: "Mobilfunk" },
+  displayName: { en: "Mobile", es: "Móvil", fr: "Mobile", pt: "Telemóvel", de: "Mobilfunk", he: "סלולר" },
   extractionSchema: MobileFieldsSchema,
   extractionHints: {
     addOns: "Recurring extra services billed on top of the plan (insurance, premium SMS, content subscriptions, cloud).",

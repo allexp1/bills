@@ -357,6 +357,7 @@ function deleteConfirmCopy(locale: SupportedLocale): string {
     fr: "Cela supprime définitivement vos factures, analyses et messages. Confirmer ?",
     pt: "Isto elimina permanentemente as suas faturas, análises e mensagens. Confirma?",
     de: "Dies löscht Ihre Rechnungen, Analysen und Nachrichten endgültig. Bestätigen?",
+    he: "פעולה זו מוחקת לצמיתות את החשבונות, הניתוחים וההודעות שלך. לאשר?",
   };
   return copy[locale];
 }
@@ -368,6 +369,7 @@ function deletionDoneCopy(locale: SupportedLocale): string {
     fr: "C'est fait — tout est supprimé. 🗑️",
     pt: "Feito — tudo eliminado. 🗑️",
     de: "Erledigt — alles gelöscht. 🗑️",
+    he: "בוצע — הכול נמחק. 🗑️",
   };
   return copy[locale];
 }

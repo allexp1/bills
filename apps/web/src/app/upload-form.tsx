@@ -18,7 +18,7 @@ type StageKey = (typeof STAGES)[number]["key"];
 function browserLocale(): string {
   if (typeof navigator === "undefined") return "en";
   const lang = navigator.language.slice(0, 2).toLowerCase();
-  return ["en", "es", "fr", "pt", "de"].includes(lang) ? lang : "en";
+  return ["en", "es", "fr", "pt", "de", "he"].includes(lang) ? lang : "en";
 }
 
 /** Shared bill-upload form: public homepage (no secret) and /try (secret). */
@@ -177,6 +177,7 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
               <option value="fr">Français</option>
               <option value="pt">Português</option>
               <option value="de">Deutsch</option>
+              <option value="he">עברית</option>
             </select>
           </label>
         </p>

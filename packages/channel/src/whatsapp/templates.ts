@@ -27,6 +27,7 @@ export const TEMPLATES: Record<TemplateName, TemplateDefinition> = {
       fr: "L'analyse de votre facture est prête. Total de ce cycle : {{1}}. Répondez ici pour voir le détail et les économies.",
       pt: "A análise da sua fatura está pronta. Total deste ciclo: {{1}}. Responda aqui para ver os detalhes e as poupanças.",
       de: "Ihre Rechnungsanalyse ist fertig. Gesamtbetrag dieses Zyklus: {{1}}. Antworten Sie hier für Details und Sparmöglichkeiten.",
+      he: "ניתוח החשבון שלך מוכן. סה\"כ במחזור הזה: {{1}}. השיבו כאן לפירוט ולאפשרויות החיסכון.",
     },
   },
   savings_reminder: {
@@ -39,6 +40,7 @@ export const TEMPLATES: Record<TemplateName, TemplateDefinition> = {
       fr: "Rappel : vous pourriez économiser {{1}} sur votre facture {{2}}. Répondez ici pour agir.",
       pt: "Lembrete: pode poupar {{1}} na sua fatura de {{2}}. Responda aqui para agir.",
       de: "Erinnerung: Sie könnten {{1}} bei Ihrer {{2}}-Rechnung sparen. Antworten Sie hier, um zu handeln.",
+      he: "תזכורת: אפשר לחסוך {{1}} בחשבון ה{{2}} שלך. השיבו כאן כדי לפעול.",
     },
   },
   promo_expiry: {
@@ -51,6 +53,7 @@ export const TEMPLATES: Record<TemplateName, TemplateDefinition> = {
       fr: "Votre prix promotionnel chez {{1}} se termine vers le {{2}} — c'est le moment où votre pouvoir de négociation est maximal. Répondez ici et nous préparons votre argumentaire.",
       pt: "O seu preço promocional com {{1}} termina por volta de {{2}} — é quando tem mais força para negociar. Responda aqui e preparamos a sua proposta.",
       de: "Ihr Aktionspreis bei {{1}} endet um den {{2}} — jetzt ist Ihre Verhandlungsposition am stärksten. Antworten Sie hier und wir bereiten Ihren Vorschlag vor.",
+      he: "המחיר המבצעי שלך אצל {{1}} מסתיים בסביבות {{2}} — זה הרגע שבו כוח המיקוח שלך בשיא. השיבו כאן ונכין את הפנייה.",
     },
   },
   mission_update: {
@@ -63,6 +66,7 @@ export const TEMPLATES: Record<TemplateName, TemplateDefinition> = {
       fr: "Mise à jour de votre demande : {{1}}. Répondez ici pour plus de détails.",
       pt: "Atualização do seu pedido: {{1}}. Responda aqui para mais detalhes.",
       de: "Neuigkeiten zu Ihrem Anliegen: {{1}}. Antworten Sie hier für Details.",
+      he: "עדכון על הבקשה שלך: {{1}}. השיבו כאן לפרטים.",
     },
   },
 };
@@ -75,6 +79,7 @@ export function templateLocaleTag(locale: SupportedLocale): string {
     fr: "fr",
     pt: "pt_PT",
     de: "de",
+    he: "he",
   };
   return map[locale];
 }

@@ -34,6 +34,7 @@ const socialTariff: SavingsLever<EnergyFields> = {
     fr: "Vérifier l'éligibilité au tarif social",
     pt: "Verificar a tarifa social",
     de: "Anspruch auf Sozialtarif prüfen",
+    he: "בדיקת זכאות לתעריף מוזל",
   },
   promptFragment:
     "Many markets have income-based social or regulated tariffs (e.g. 'bono social' in Spain, 'tarifa social' in Portugal) with substantial discounts. Eligibility cannot be read off a bill — suggest checking it as a possibility, with NO amount. Skip this lever entirely if the bill already shows a social tariff applied.",
@@ -47,6 +48,7 @@ const socialTariff: SavingsLever<EnergyFields> = {
       fr: `Si vos revenus sont modestes, demandez à ${provider} (ou au médiateur de l'énergie) si vous avez droit à un tarif social ou au chèque énergie.`,
       pt: `Se o rendimento do agregado é baixo, pergunte à ${provider} (ou consulte a ERSE) se tem direito à tarifa social — o desconto é substancial.`,
       de: `Bei geringem Einkommen fragen Sie ${provider} oder die Verbraucherzentrale nach Sozialtarifen und Vergünstigungen.`,
+      he: `אם הכנסת משק הבית נמוכה, בדקו מול ${provider} או מול הרגולטור אם מגיע לכם תעריף מוזל — ההנחות משמעותיות.`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -61,6 +63,7 @@ const switchTariff: SavingsLever<EnergyFields> = {
     fr: "Passer à un tarif moins cher",
     pt: "Mudar para uma tarifa mais barata",
     de: "Zu einem günstigeren Tarif wechseln",
+    he: "מעבר לתעריף זול יותר",
   },
   promptFragment:
     "If a comparison offer beats the customer's current monthly cost, propose switching. Cite the offer id. Mention the exit fee if one was extracted.",
@@ -79,6 +82,7 @@ const switchTariff: SavingsLever<EnergyFields> = {
       fr: `Répondez « Agir » et nous vous aiderons à lancer le changement, ou contactez ${provider} pour demander d'abord votre relevé final.`,
       pt: `Responda "Agir" e ajudamos a iniciar a mudança, ou contacte a ${provider} para pedir primeiro a leitura final.`,
       de: `Antworten Sie "Handeln" und wir helfen beim Wechsel, oder kontaktieren Sie ${provider} für Ihren letzten Zählerstand.`,
+      he: `השיבו "לפעולה" ונעזור להתחיל את המעבר, או פנו ל־${provider} לקריאת מונה אחרונה.`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -93,6 +97,7 @@ const actualMeterRead: SavingsLever<EnergyFields> = {
     fr: "Transmettre un relevé réel du compteur",
     pt: "Enviar uma leitura real do contador",
     de: "Echten Zählerstand übermitteln",
+    he: "שליחת קריאת מונה אמיתית",
   },
   promptFragment:
     "If any meter read is estimated, explain that the bill is based on a guess and submitting a real reading corrects over-billing. Do NOT invent a saving amount — this lever has no groundable number unless the bill itself shows an estimation adjustment.",
@@ -109,6 +114,7 @@ const actualMeterRead: SavingsLever<EnergyFields> = {
       fr: `Relevez votre compteur aujourd'hui et transmettez-le via l'app ou le site de ${provider}.`,
       pt: `Leia o contador hoje e envie pela app ou site da ${provider} — a próxima fatura usará o consumo real.`,
       de: `Lesen Sie heute Ihren Zähler ab und übermitteln Sie den Stand über die App oder Website von ${provider}.`,
+      he: `קראו את המונה היום ושלחו את הקריאה דרך האפליקציה או האתר של ${provider} — החשבון הבא יחויב לפי צריכה אמיתית.`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -117,7 +123,7 @@ const actualMeterRead: SavingsLever<EnergyFields> = {
 export const energyPack: CategoryPack<EnergyFields> = {
   id: "energy",
   version: "0.1.0",
-  displayName: { en: "Energy", es: "Energía", fr: "Énergie", pt: "Energia", de: "Energie" },
+  displayName: { en: "Energy", es: "Energía", fr: "Énergie", pt: "Energia", de: "Energie", he: "אנרגיה" },
   extractionSchema: EnergyFieldsSchema,
   extractionHints: {
     "meterReads.kind":

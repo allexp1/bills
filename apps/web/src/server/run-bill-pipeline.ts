@@ -11,7 +11,7 @@ import {
   snapshotFromExtraction,
   type BillSnapshot,
 } from "@bills/pipeline";
-import { parseAmount, type SupportedLocale } from "@bills/shared";
+import { SUPPORTED_LOCALES, parseAmount, type SupportedLocale } from "@bills/shared";
 import { keys } from "./wiring.js";
 import { env } from "./env.js";
 import { loadGuardedDecode } from "./decode-store.js";
@@ -80,6 +80,16 @@ export async function runBillPipeline(args: {
     progress("extracting");
     const { extraction, usage, model, promptVersion } = await extractBill(pages);
     const pack = getPack(extraction.category);
+
+    // Language policy: everything renders in the BILL's language by default —
+    // a Hebrew bill gets a Hebrew page. The requested locale applies only
+    // when the customer asked for translation, or when the bill's language
+    // isn't one we can render.
+    const billBase = (extraction.common.billLanguage ?? "").toLowerCase().slice(0, 2);
+    const renderLocale: SupportedLocale =
+      !args.translate && (SUPPORTED_LOCALES as readonly string[]).includes(billBase)
+        ? (billBase as SupportedLocale)
+        : locale;
     const [extractionRow] = await database
       .insert(schema.extractions)
       .values({
@@ -150,7 +160,7 @@ export async function runBillPipeline(args: {
       pack,
       gotchaFacts,
       offers,
-      customerLocale: locale,
+      customerLocale: renderLocale,
       priorBills: priorSnapshots.map((p) => p.summary),
     });
 
@@ -161,7 +171,7 @@ export async function runBillPipeline(args: {
       extraction,
       pack,
       offers,
-      locale,
+      locale: renderLocale,
       priorAmounts: priorSnapshots.flatMap((p) => snapshotAmounts(p.snapshot)),
     });
 
@@ -210,7 +220,7 @@ export async function runBillPipeline(args: {
       extractionId: extractionRow!.id,
       data: encryptJson(keys(), guarded),
       guardrailReport: report,
-      localeRendered: locale,
+      localeRendered: renderLocale,
       model: decodeResult.model,
       promptVersion: decodeResult.promptVersion,
       usage: decodeResult.usage,

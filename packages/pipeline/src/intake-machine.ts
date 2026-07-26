@@ -155,4 +155,5 @@ export const GREETINGS: Record<SupportedLocale, string> = {
   fr: "Bonjour ! 👋 Envoyez-moi une photo ou un PDF d'une facture récurrente (énergie, internet ou mobile) et je vous explique ce que vous payez et comment payer moins.",
   pt: "Olá! 👋 Envie-me uma foto ou PDF de qualquer fatura recorrente (energia, internet ou telemóvel) e eu explico exatamente o que paga e como pagar menos.",
   de: "Hallo! 👋 Schicken Sie mir ein Foto oder PDF einer laufenden Rechnung (Energie, Internet oder Mobilfunk) und ich erkläre genau, wofür Sie zahlen und wie Sie sparen können.",
+  he: "שלום! 👋 שלחו לי צילום או PDF של כל חשבון קבוע — חשמל, אינטרנט או סלולר — ואסביר בדיוק על מה אתם משלמים ואיך לשלם פחות.",
 };

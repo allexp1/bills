@@ -24,6 +24,7 @@ export const QUOTA_COPY: Record<string, string> = {
   fr: "Vous avez atteint la limite de factures analysées aujourd'hui — envoyez la suivante demain. 🙏",
   pt: "Atingiu o limite de faturas analisadas por hoje — envie a próxima amanhã. 🙏",
   de: "Sie haben das heutige Limit analysierter Rechnungen erreicht — senden Sie die nächste morgen. 🙏",
+  he: "הגעתם למכסת החשבונות המנותחים להיום — שלחו את הבא מחר. 🙏",
 };
 
 export const PAGE_LIMIT_COPY: Record<string, string> = {
@@ -32,4 +33,5 @@ export const PAGE_LIMIT_COPY: Record<string, string> = {
   fr: `C'est le maximum de ${MAX_PAGES_PER_BILL} pages par facture — j'analyse ce que vous avez envoyé.`,
   pt: `É o máximo de ${MAX_PAGES_PER_BILL} páginas por fatura — vou analisar o que enviou.`,
   de: `Das ist das Maximum von ${MAX_PAGES_PER_BILL} Seiten pro Rechnung — ich analysiere das Gesendete.`,
+  he: `זה המקסימום של ${MAX_PAGES_PER_BILL} עמודים לחשבון — מנתח את מה ששלחתם.`,
 };

@@ -17,6 +17,7 @@ const WEB_STRINGS: Record<SupportedLocale, Record<string, string>> = {
   fr: { due: "Échéance", pastDue: "en retard", lineItems: "Ce que vous payez", gotchas: "Bon à savoir", savings: "Où économiser", printed: "Imprimé sur votre facture", perMonth: "/mois", perYear: "/an", oneOff: "une fois", varies: "montant selon la consommation", back: "Continuer sur WhatsApp", expiredTitle: "Ce lien a expiré", expiredBody: "Écrivez-nous à nouveau sur WhatsApp et nous vous en enverrons un autre.", period: "Période de facturation", privacy: "Cette page est privée. Rien n'est indexé ni partagé.", glance: "En un coup d'œil", stDataUsed: "Données utilisées", stOf: "sur {n}", stMinutes: "Minutes utilisées", stFee: "Prix du forfait", stConsumption: "Consommation", meterCaption: "Vous utilisez {pct}% des données de votre forfait", waSupportTitle: "{provider} propose un support officiel sur WhatsApp", waSupportBody: "Appuyez ci-dessous pour ouvrir la discussion — votre message demandant une meilleure offre est déjà rédigé, il ne reste qu'à envoyer.", waSupportCta: "Écrire à {provider} sur WhatsApp", smsSupportTitle: "{provider} répond par SMS", smsSupportBody: "Appuyez ci-dessous depuis votre téléphone — votre message est déjà rédigé, il ne reste qu'à envoyer.", smsSupportCta: "Envoyer un SMS à {provider}", chatSupportTitle: "{provider} propose un chat d'assistance en ligne", chatSupportBody: "Ouvre la page de chat officielle du fournisseur — demandez un meilleur forfait ou une remise.", chatSupportCta: "Ouvrir le chat {provider}", pitchTitle: "Demandez une meilleure offre", pitchBody: "Nous avons rédigé le message pour vous — fondé sur votre facture et les offres actuelles du marché. Copiez-le ou envoyez-le directement.", pitchCopy: "Copier le message", pitchCopied: "Copié ✓", pitchCallTitle: "Vous préférez appeler ? Lisez ce script", pitchWebChatHint: "Copiez le message, puis ouvrez leur chat officiel :" },
   pt: { due: "Vencimento", pastDue: "em atraso", lineItems: "O que está a pagar", gotchas: "Vale a pena saber", savings: "Onde pode poupar", printed: "Impresso na sua fatura", perMonth: "/mês", perYear: "/ano", oneOff: "uma vez", varies: "o valor depende do consumo", back: "Continuar no WhatsApp", expiredTitle: "Este link expirou", expiredBody: "Escreva-nos novamente no WhatsApp e enviamos um novo.", period: "Período de faturação", privacy: "Esta página é privada. Nada aqui é indexado ou partilhado.", glance: "Num relance", stDataUsed: "Dados usados", stOf: "de {n}", stMinutes: "Minutos usados", stFee: "Mensalidade do plano", stConsumption: "Consumo", meterCaption: "Está a usar {pct}% dos dados do seu plano", waSupportTitle: "A {provider} tem apoio oficial por WhatsApp", waSupportBody: "Toque abaixo para abrir a conversa — a sua mensagem a pedir uma oferta melhor já está escrita, basta enviar.", waSupportCta: "Falar com a {provider} no WhatsApp", smsSupportTitle: "A {provider} atende por SMS", smsSupportBody: "Toque abaixo no seu telefone — a sua mensagem já está escrita, basta enviar.", smsSupportCta: "Enviar SMS à {provider}", chatSupportTitle: "A {provider} tem chat de apoio online", chatSupportBody: "Abre a página oficial de chat do fornecedor — pergunte por planos ou descontos melhores.", chatSupportCta: "Abrir o chat da {provider}", pitchTitle: "Peça uma oferta melhor", pitchBody: "Escrevemos a mensagem por si — com base na sua fatura e nas ofertas atuais do mercado. Copie-a ou envie-a diretamente.", pitchCopy: "Copiar mensagem", pitchCopied: "Copiado ✓", pitchCallTitle: "Prefere ligar? Leia este guião", pitchWebChatHint: "Copie a mensagem e abra o chat oficial:" },
   de: { due: "Fällig", pastDue: "überfällig", lineItems: "Wofür Sie zahlen", gotchas: "Gut zu wissen", savings: "Wo Sie sparen können", printed: "Auf Ihrer Rechnung gedruckt", perMonth: "/Monat", perYear: "/Jahr", oneOff: "einmalig", varies: "Betrag hängt vom Verbrauch ab", back: "Weiter in WhatsApp", expiredTitle: "Dieser Link ist abgelaufen", expiredBody: "Schreiben Sie uns erneut auf WhatsApp und wir senden einen neuen.", period: "Abrechnungszeitraum", privacy: "Diese Seite ist privat. Nichts wird indexiert oder geteilt.", glance: "Auf einen Blick", stDataUsed: "Verbrauchte Daten", stOf: "von {n}", stMinutes: "Verbrauchte Minuten", stFee: "Tarifpreis", stConsumption: "Verbrauch", meterCaption: "Sie nutzen {pct}% des Datenvolumens Ihres Tarifs", waSupportTitle: "{provider} hat offiziellen WhatsApp-Support", waSupportBody: "Tippen Sie unten, um den Chat zu öffnen — Ihre Nachricht mit der Frage nach einem besseren Angebot ist schon fertig, nur noch senden.", waSupportCta: "{provider} auf WhatsApp schreiben", smsSupportTitle: "{provider} bietet Support per SMS", smsSupportBody: "Tippen Sie unten auf Ihrem Telefon — Ihre Nachricht ist schon fertig, nur noch senden.", smsSupportCta: "SMS an {provider} senden", chatSupportTitle: "{provider} hat Online-Chat-Support", chatSupportBody: "Öffnet die offizielle Support-Chat-Seite des Anbieters — fragen Sie nach besseren Tarifen oder Rabatten.", chatSupportCta: "{provider}-Chat öffnen", pitchTitle: "Fordern Sie ein besseres Angebot", pitchBody: "Wir haben die Nachricht für Sie geschrieben — gestützt auf Ihre Rechnung und aktuelle Marktangebote. Kopieren oder direkt senden.", pitchCopy: "Nachricht kopieren", pitchCopied: "Kopiert ✓", pitchCallTitle: "Lieber anrufen? Lesen Sie dieses Skript", pitchWebChatHint: "Nachricht kopieren, dann den offiziellen Chat öffnen:" },
+  he: { due: "לתשלום עד", pastDue: "בפיגור", lineItems: "על מה אתם משלמים", gotchas: "כדאי לדעת", savings: "איפה אפשר לחסוך", printed: "מודפס על החשבון", perMonth: "/חודש", perYear: "/שנה", oneOff: "חד־פעמי", varies: "הסכום תלוי בשימוש", back: "להמשיך בוואטסאפ", expiredTitle: "הקישור פג תוקף", expiredBody: "כתבו לנו שוב ונשלח קישור חדש.", period: "תקופת חיוב", privacy: "הדף הזה פרטי עבורך. שום דבר כאן לא נסרק ולא משותף.", glance: "במבט מהיר", stDataUsed: "שימוש בנתונים", stOf: "מתוך {n}", stMinutes: "דקות שיחה", stFee: "דמי מסלול", stConsumption: "צריכה", meterCaption: "אתם משתמשים ב־{pct}% מחבילת הנתונים שלכם", waSupportTitle: "ל{provider} יש שירות רשמי בוואטסאפ", waSupportBody: "הקישו למטה לפתיחת צ'אט — ההודעה שמבקשת הצעה טובה יותר כבר כתובה, נשאר רק לשלוח.", waSupportCta: "לכתוב ל{provider} בוואטסאפ", smsSupportTitle: "{provider} נותנת שירות ב־SMS", smsSupportBody: "הקישו למטה מהטלפון — ההודעה כבר כתובה, נשאר רק לשלוח.", smsSupportCta: "לשלוח SMS ל{provider}", chatSupportTitle: "ל{provider} יש צ'אט שירות מקוון", chatSupportBody: "נפתח דף הצ'אט הרשמי של הספק — שאלו על מסלולים או הנחות.", chatSupportCta: "לפתוח את הצ'אט של {provider}", pitchTitle: "בקשו הצעה טובה יותר", pitchBody: "כתבנו את ההודעה בשבילכם — מבוססת על החשבון שלכם ועל הצעות עדכניות בשוק. העתיקו או שלחו ישירות.", pitchCopy: "העתקת ההודעה", pitchCopied: "הועתק ✓", pitchCallTitle: "מעדיפים להתקשר? קראו את התסריט", pitchWebChatHint: "העתיקו את ההודעה ואז פתחו את הצ'אט הרשמי:" },
 };
 
 function Expired({ locale }: { locale: SupportedLocale }) {
@@ -67,7 +68,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ token:
   const ctaKey = chatCta?.channel === "sms" ? "sms" : chatCta?.channel === "web_chat" ? "chat" : "wa";
 
   return (
-    <main className="page">
+    <main className="page" dir={locale === "he" ? "rtl" : undefined}>
       <ThemeToggle />
 
       <section className="card hero">
@@ -108,35 +109,39 @@ export default async function SummaryPage({ params }: { params: Promise<{ token:
             {guarded.history.vsPrevious.newItems.length > 0 && (
               <p style={{ margin: "6px 0" }}>
                 <b>{tPipeline(locale, "histNew")}:</b>{" "}
+                <span dir="auto">
                 {guarded.history.vsPrevious.newItems
                   .map((i) => `${i.label}${i.amountMinor !== null ? ` (${formatMoney({ amountMinor: i.amountMinor, currency: guarded.history!.currency }, locale)})` : ""}`)
                   .join(", ")}
+                </span>
               </p>
             )}
             {guarded.history.vsPrevious.removedItems.length > 0 && (
               <p style={{ margin: "6px 0" }}>
                 <b>{tPipeline(locale, "histGone")}:</b>{" "}
-                {guarded.history.vsPrevious.removedItems.map((i) => i.label).join(", ")}
+                <span dir="auto">{guarded.history.vsPrevious.removedItems.map((i) => i.label).join(", ")}</span>
               </p>
             )}
             {guarded.history.vsPrevious.changedItems.length > 0 && (
               <p style={{ margin: "6px 0" }}>
                 <b>{tPipeline(locale, "histChanged")}:</b>{" "}
+                <span dir="auto">
                 {guarded.history.vsPrevious.changedItems
                   .map(
                     (i) =>
                       `${i.label}: ${formatMoney({ amountMinor: i.fromMinor, currency: guarded.history!.currency }, locale)} → ${formatMoney({ amountMinor: i.toMinor, currency: guarded.history!.currency }, locale)}`,
                   )
                   .join(", ")}
+                </span>
               </p>
             )}
-            {guarded.history.vsPrevious.dataUsedDeltaGb !== null && (
+            {guarded.history.vsPrevious.dataUsedDeltaGb !== null && guarded.history.vsPrevious.dataUsedDeltaGb !== 0 && (
               <p style={{ margin: "6px 0", color: "var(--text-muted)" }}>
                 {tPipeline(locale, "histData")}: {guarded.history.vsPrevious.dataUsedDeltaGb > 0 ? "+" : ""}
                 {guarded.history.vsPrevious.dataUsedDeltaGb} GB
               </p>
             )}
-            {guarded.history.vsPrevious.usageKwhDelta !== null && (
+            {guarded.history.vsPrevious.usageKwhDelta !== null && guarded.history.vsPrevious.usageKwhDelta !== 0 && (
               <p style={{ margin: "6px 0", color: "var(--text-muted)" }}>
                 {tPipeline(locale, "histKwh")}: {guarded.history.vsPrevious.usageKwhDelta > 0 ? "+" : ""}
                 {guarded.history.vsPrevious.usageKwhDelta} kWh
@@ -378,15 +383,19 @@ function glance(
   if (extraction.category === "mobile") {
     const usedPrinted = printed(fields.dataUsedGb);
     const allowancePrinted = printed(fields.dataAllowanceGb);
-    if (usedPrinted) {
-      stats.push({
-        label: s.stDataUsed!,
-        value: usedPrinted,
-        ...(allowancePrinted ? { sub: s.stOf!.replace("{n}", allowancePrinted) } : {}),
-      });
-    }
     const used = parseGb(usedPrinted);
     const allowance = parseGb(allowancePrinted);
+    if (usedPrinted) {
+      // Bills often print usage in MB — show the normalized GB alongside.
+      const approxGb =
+        used !== null && Number.isFinite(used) && /mb|\bmo\b|mega|מגה/i.test(usedPrinted)
+          ? `≈ ${used >= 10 ? Math.round(used) : used.toFixed(1)} GB`
+          : null;
+      const sub = [approxGb, allowancePrinted ? s.stOf!.replace("{n}", allowancePrinted) : null]
+        .filter(Boolean)
+        .join(" · ");
+      stats.push({ label: s.stDataUsed!, value: usedPrinted, ...(sub ? { sub } : {}) });
+    }
     if (used !== null && allowance !== null && Number.isFinite(allowance) && allowance > 0) {
       const pct = Math.min(100, Math.round((used / allowance) * 100));
       meter = { pct, caption: s.meterCaption!.replace("{pct}", String(pct)) };
