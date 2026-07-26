@@ -54,6 +54,12 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // The file input is display:none (styled dropzone), so native `required`
+    // can't focus it to complain — validate here with a visible message.
+    if (!fileInput.current?.files?.length) {
+      setError("Please add a bill first — a photo or PDF, drag it in or tap the box above.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setResult(null);
@@ -129,6 +135,7 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
           if (fileInput.current && e.dataTransfer.files.length > 0) {
             fileInput.current.files = e.dataTransfer.files;
             setFileNames(Array.from(e.dataTransfer.files).map((f) => f.name));
+            setError(null);
           }
         }}
       >
@@ -143,8 +150,10 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
           name="pages"
           multiple
           accept="image/*,application/pdf"
-          required
-          onChange={(e) => setFileNames(Array.from(e.currentTarget.files ?? []).map((f) => f.name))}
+          onChange={(e) => {
+            setFileNames(Array.from(e.currentTarget.files ?? []).map((f) => f.name));
+            setError(null);
+          }}
         />
         {fileNames.length > 0 && (
           <div className="dz-files">
