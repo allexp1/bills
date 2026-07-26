@@ -99,3 +99,52 @@ export function IconSpark({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+
+export function IconMegaphone({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M4 10v4a1 1 0 0 0 1 1h2l1.5 4.5a1 1 0 0 0 1.9-.6L9 15" />
+      <path d="M7 15V9l11-4.5v15L7 15Z" />
+      <path d="M21 10.5v3" />
+    </Svg>
+  );
+}
+
+export function IconPhoneCall({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M5 4h3l2 5-2.5 1.5a12 12 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2.2 2A17 17 0 0 1 3 6.2 2 2 0 0 1 5 4Z" />
+    </Svg>
+  );
+}
+
+export function IconAlertCircle({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5" />
+      <path d="M12 16.2v.3" />
+    </Svg>
+  );
+}
+
+export function IconReceipt({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M5 3.5v17l2.3-1.5 2.3 1.5 2.4-1.5 2.3 1.5 2.4-1.5 2.3 1.5v-17H5Z" />
+      <path d="M9 8.5h6" />
+      <path d="M9 12.5h6" />
+    </Svg>
+  );
+}
+
+export function IconListCheck({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M4 6.5h10" />
+      <path d="M4 12h10" />
+      <path d="M4 17.5h6" />
+      <path d="m16 16.5 2 2 4-4" />
+    </Svg>
+  );
+}
