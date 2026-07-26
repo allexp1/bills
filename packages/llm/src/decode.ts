@@ -123,7 +123,8 @@ Negotiation pitch (negotiationPitch) — follow the evidence-based method below;
    - closing: accept only against the private target; restate the agreed terms, ask for a confirmation number, note when any promo ends.
 14. Pitch grounding is rule 3 applied twice: every amount must trace to basis.extractionPaths or a basis.comparisonOfferIds entry; targetMonthlyMinor must equal a cited offer's price or a defensible bill-derived figure — else null. NEVER put account numbers, ID numbers or payment details in the pitch; "my account" suffices, the provider sees who is writing.
 15. Category nuance: retention haggling works best for telecom/broadband/mobile. For energy bills in markets with regulated/published tariffs (notably the UK), suppliers cannot price-match or deviate — frame the pitch around switching or moving to the provider's best published tariff instead of asking for an off-menu discount.
-16. Prior-bill history: when priorBills is present in the context, explain the biggest month-over-month changes (total delta, charges that appeared/disappeared/changed, usage shifts) — those amounts are the customer's own history and fully citable anywhere, including the pitch ("my bill went from X to Y"). A price creep across months is loyalty_retention ammunition.`;
+16. LENGTH BUDGET (hard): at most 8 sections and 5 explainMoreQueue entries; keep each explanation under 400 characters. Non-Latin scripts cost far more tokens per character — be tighter still in Hebrew, Arabic, Greek or Cyrillic. Depth belongs in explainMoreQueue, not in longer sections.
+17. Prior-bill history: when priorBills is present in the context, explain the biggest month-over-month changes (total delta, charges that appeared/disappeared/changed, usage shifts) — those amounts are the customer's own history and fully citable anywhere, including the pitch ("my bill went from X to Y"). A price creep across months is loyalty_retention ammunition.`;
 }
 
 export interface PriorBillSummary {
@@ -163,21 +164,40 @@ export async function decodeBill(args: {
     ...(priorBills && priorBills.length > 0 ? { priorBills } : {}),
   };
 
-  const response = await anthropic().messages.parse({
-    model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
-    system: [{ type: "text", text: decodeSystemPrompt(), cache_control: { type: "ephemeral" } }],
-    messages: [
-      {
-        role: "user",
-        content: `Customer locale: ${customerLocale}\n\nContext JSON:\n${JSON.stringify(context, null, 2)}`,
-      },
-    ],
-    output_config: { format: zodOutputFormat(DecodeOutputSchema) },
-  });
+  const userContent = `Customer locale: ${customerLocale}\n\nContext JSON:\n${JSON.stringify(context, null, 2)}`;
+
+  /**
+   * Truncation is the one failure mode structured output can't recover from
+   * (the JSON ends mid-string), and non-Latin scripts cost ~2-3× the tokens
+   * per character. So: a generous budget, and one retry under a hard brevity
+   * cap if the model still runs to the limit.
+   */
+  const call = (maxTokens: number, brevity: string | null) =>
+    anthropic().messages.parse({
+      model: MODEL,
+      max_tokens: maxTokens,
+      thinking: { type: "adaptive" },
+      system: [{ type: "text", text: decodeSystemPrompt(), cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: brevity ? `${userContent}\n\n${brevity}` : userContent }],
+      output_config: { format: zodOutputFormat(DecodeOutputSchema) },
+    });
+
+  let response;
+  try {
+    response = await call(32000, null);
+  } catch (err) {
+    const truncated = err instanceof Error && /parse structured output/i.test(err.message);
+    if (!truncated) throw err;
+    console.warn("[decode] output truncated — retrying with a brevity cap");
+    response = await call(32000, BREVITY_RETRY);
+  }
 
   const decode = response.parsed_output as DecodeOutput | null;
   if (!decode) throw new Error(`decode parse failed (stop_reason=${response.stop_reason})`);
+  if (response.stop_reason === "max_tokens") {
+    console.warn("[decode] stop_reason=max_tokens — output was near the ceiling");
+  }
   return { decode, usage: usageFrom(response.usage), model: MODEL, promptVersion: DECODE_PROMPT_VERSION };
 }
+
+const BREVITY_RETRY = `LENGTH LIMIT — your previous attempt ran past the output budget. Produce the same structure, materially shorter: at most 5 sections and 3 explainMoreQueue entries, every explanation under 300 characters, at most 3 evidence lines and 2 objections in the call script. Keep all savings claims and their grounding; cut prose, never numbers or citations.`;

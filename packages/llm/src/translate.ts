@@ -78,7 +78,7 @@ export async function translateBillView(args: {
 
   const response = await anthropic().messages.parse({
     model: MODEL,
-    max_tokens: 4000,
+    max_tokens: 16000,
     system: [
       {
         type: "text",
