@@ -8,7 +8,7 @@ import { billQuotaExceeded } from "../../../server/rate-limit.js";
 import { PipelineError, runBillPipeline } from "../../../server/run-bill-pipeline.js";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 const MAX_FILES = 10;
 const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
@@ -79,14 +79,25 @@ export async function POST(req: NextRequest) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+        const started = Date.now();
+        const send = (obj: unknown) => {
+          try {
+            controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+          } catch {
+            // client disconnected — keep processing; the result is still stored
+          }
+        };
+        const sendStage = (stage: string) => {
+          console.log(`[upload] stage=${stage} t=${Math.round((Date.now() - started) / 1000)}s`);
+          send({ stage });
+        };
         try {
           const result = await runBillPipeline({
             customerId: customer.id,
             pages,
             locale,
             translate: form.get("translate") === "on",
-            onProgress: (stage) => send({ stage }),
+            onProgress: sendStage,
           });
           send(result);
         } catch (err) {

@@ -5,7 +5,7 @@ import { runJob, type JobName } from "../../../../server/jobs.js";
 
 export const runtime = "nodejs";
 /** Bill processing runs 30–60s of Opus calls; needs Fluid compute / a paid plan. */
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 const JOB_NAMES: ReadonlySet<string> = new Set(["ingest-media", "process-bill"]);
 

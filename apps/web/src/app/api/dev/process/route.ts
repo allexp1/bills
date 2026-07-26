@@ -7,7 +7,7 @@ import { env } from "../../../../server/env.js";
 import { PipelineError, runBillPipeline } from "../../../../server/run-bill-pipeline.js";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 /**
  * Dev/test harness: identical pipeline to the public upload, but gated by

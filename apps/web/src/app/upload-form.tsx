@@ -79,6 +79,7 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
       const decoder = new TextDecoder();
       let buffer = "";
       let last: Record<string, unknown> | null = null;
+      let sawStage = false;
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -88,11 +89,19 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
         for (const line of lines) {
           if (!line.trim()) continue;
           const obj = JSON.parse(line) as Record<string, unknown>;
-          if (typeof obj.stage === "string") goToStage(obj.stage as StageKey);
-          else last = obj;
+          if (typeof obj.stage === "string") {
+            sawStage = true;
+            goToStage(obj.stage as StageKey);
+          } else last = obj;
         }
       }
       if (buffer.trim()) last = JSON.parse(buffer) as Record<string, unknown>;
+      if (!last && sawStage) {
+        // The stream died before the final result line — connection or
+        // server-side timeout, not a normal error response.
+        finish({ error: "connection_dropped", detail: "the analysis stream was interrupted — wait a minute, then try again; if it repeats, tell us which stage it stopped at" }, false);
+        return;
+      }
       finish(last, true);
     } catch (err) {
       stopTrickle();
