@@ -898,6 +898,10 @@ body:has(.sum) {
   margin: 0 0 10px;
   font-size: 0.82rem;
   font-weight: 700;
+  line-height: 1.5;
+  /* Reserves the row even when a label is empty, so the first card in every
+     column starts at the same y. */
+  min-height: 1.5em;
   color: var(--s-muted);
 }
 
@@ -958,11 +962,6 @@ body:has(.sum) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
-}
-.s-hero .cap {
-  color: var(--s-muted);
-  font-size: 0.78rem;
-  font-weight: 600;
 }
 .s-hero .total {
   font-size: clamp(2.3rem, 6vw, 3rem);

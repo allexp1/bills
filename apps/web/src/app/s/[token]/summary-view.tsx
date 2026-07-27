@@ -123,10 +123,12 @@ export function SummaryView({
           {/* ---------------- column A: the money ---------------- */}
           <div className="sum-col">
             <section className="sum-block b-hero">
+              {/* Every column's first card must sit under a section label, or
+                  its top edge lands a label's height above its neighbours. */}
+              <span className="s-label">{s.lastBill}</span>
               <div className="s-card s-hero">
                 <div className="row">
                   <div>
-                    <div className="cap">{s.lastBill}</div>
                     <div className="total">
                       <bdi>{total}</bdi>
                     </div>
