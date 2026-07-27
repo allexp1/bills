@@ -22,3 +22,34 @@ export function db(): Db {
   singleton ??= createDb();
   return singleton;
 }
+
+let tenantSingleton: Db | undefined;
+let warnedNoTenantUrl = false;
+
+/**
+ * Connection for signed-in account traffic, using the bills_tenant role that
+ * row level security policies apply to. Everything else, meaning the ingestion
+ * pipeline, the crons and the share page, keeps using db() as the owner and is
+ * deliberately exempt: those paths have no session, since a bill arrives from
+ * WhatsApp long before anyone visits the website.
+ *
+ * With DATABASE_URL_TENANT unset this falls back to the owner connection. The
+ * repository layer still scopes every query and its guard test still fails the
+ * build if one does not, so the fallback loses the second layer rather than
+ * all isolation. It warns once, because losing a layer quietly is how you end
+ * up believing you have two.
+ */
+export function tenantDb(): Db {
+  const url = process.env.DATABASE_URL_TENANT;
+  if (!url) {
+    if (!warnedNoTenantUrl) {
+      warnedNoTenantUrl = true;
+      console.warn(
+        "[db] DATABASE_URL_TENANT is not set: account queries fall back to the owner connection, so row level security is not enforced. Repository-level tenant scoping still applies.",
+      );
+    }
+    return db();
+  }
+  tenantSingleton ??= createDb(url);
+  return tenantSingleton;
+}

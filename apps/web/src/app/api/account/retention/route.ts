@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { z } from "zod";
-import { db } from "@bills/db";
+import { tenantDb } from "@bills/db";
 import { setRetentionConsent } from "@bills/db/repo/portfolio";
 import { resolveCustomer } from "../../../../server/auth/resolve-customer.js";
 
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     locale: "en",
   });
 
-  await setRetentionConsent(db(), customerId, parsed.data.consented);
+  await setRetentionConsent(tenantDb(), customerId, parsed.data.consented);
 
   return NextResponse.json({ ok: true, consented: parsed.data.consented });
 }

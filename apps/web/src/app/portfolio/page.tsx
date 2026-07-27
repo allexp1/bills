@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { db } from "@bills/db";
+import { tenantDb } from "@bills/db";
 import { getPortfolio, type PortfolioEntry } from "@bills/db/repo/portfolio";
 import { resolveCustomer } from "../../server/auth/resolve-customer.js";
 import { SiteFooter, SiteNav } from "../../components/site-nav.js";
@@ -74,7 +74,7 @@ export default async function PortfolioPage() {
     locale: "en",
   });
 
-  const portfolio = await getPortfolio(db(), customerId);
+  const portfolio = await getPortfolio(tenantDb(), customerId);
 
   return (
     <div className="fx min-h-screen">

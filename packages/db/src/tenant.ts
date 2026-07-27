@@ -61,15 +61,13 @@ export async function withTenant<T>(
 }
 
 /**
- * Escape hatch for work that legitimately spans customers: cron jobs, the
- * media purge, playbook warming. Named so it shows up in review, and it must
- * never be reachable from a request carrying a session.
+ * Marks a query that legitimately spans customers: the crons, the media purge,
+ * the ingestion pipeline before a customer has been resolved. It does not
+ * change permissions, because exemption is by role now rather than by call
+ * site. It exists so these paths are greppable and show up in review, and so
+ * the guard test can assert that nothing in the repository layer uses it.
  */
 export async function withoutTenant<T>(db: Db, reason: string, fn: (tx: TenantDb) => Promise<T>) {
   if (!reason.trim()) throw new TenantError("withoutTenant requires a reason");
-  return db.transaction(async (tx) => {
-    await tx.execute(sql`select set_config('app.bypass_reason', ${reason}, true)`);
-    await tx.execute(sql`set local role bills_admin`);
-    return fn(tx);
-  });
+  return db.transaction(async (tx) => fn(tx));
 }

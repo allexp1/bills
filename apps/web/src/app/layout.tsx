@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   title: "Fixplo.ai",
   description:
     "Fixplo reads your utility bills, explains every charge, then calls your provider and negotiates a better rate on your behalf.",
-  robots: { index: false, follow: false },
+  robots: { index: true, follow: true },
   icons: { icon: "/icon.svg" },
 };
 

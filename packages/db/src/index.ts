@@ -1,5 +1,5 @@
 export * as schema from "./schema.js";
-export { createDb, db, type Db } from "./client.js";
+export { createDb, db, tenantDb, type Db } from "./client.js";
 export {
   encryptEnvelope,
   decryptEnvelope,
