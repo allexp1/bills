@@ -18,6 +18,24 @@ export type InvoiceStatus =
   | "failed"
   | "deleted";
 
+/**
+ * Statuses that mean work is still in progress. A run that dies mid-flight —
+ * function timeout, crash, connection drop — never reaches a terminal status,
+ * so it sits in one of these forever. Anything reading invoice state has to
+ * treat an old in-flight row as dead rather than as still working.
+ */
+export const IN_FLIGHT_INVOICE_STATUSES = [
+  "collecting",
+  "queued",
+  "extracting",
+  "decoding",
+  "guardrail",
+] as const satisfies readonly InvoiceStatus[];
+
+export function isInFlightStatus(status: string): boolean {
+  return (IN_FLIGHT_INVOICE_STATUSES as readonly string[]).includes(status);
+}
+
 export type MissionStatus =
   | "draft"
   | "awaiting_authorization"

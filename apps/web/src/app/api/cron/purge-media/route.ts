@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, isNull, lt } from "drizzle-orm";
+import { and, inArray, isNull, lt } from "drizzle-orm";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@bills/db";
+import { IN_FLIGHT_INVOICE_STATUSES } from "@bills/shared";
 import { mediaStore } from "../../../../server/media-store.js";
+import { STALE_IN_FLIGHT_MINUTES } from "../../../../server/rate-limit.js";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -40,6 +42,28 @@ export async function GET(req: NextRequest) {
     purged++;
   }
 
+  // Bury runs that died without ever reaching a terminal status — a function
+  // timeout or crash leaves an invoice stuck in `decoding` forever. The quota
+  // already ignores stale in-flight rows at read time, so this is about the
+  // data telling the truth: a run that will never finish is a failed run.
+  let buried = 0;
+  try {
+    const deadline = new Date(Date.now() - STALE_IN_FLIGHT_MINUTES * 60_000);
+    const dead = await db()
+      .update(schema.invoices)
+      .set({ status: "failed", errorCode: "abandoned" })
+      .where(
+        and(
+          inArray(schema.invoices.status, [...IN_FLIGHT_INVOICE_STATUSES]),
+          lt(schema.invoices.createdAt, deadline),
+        ),
+      )
+      .returning({ id: schema.invoices.id });
+    buried = dead.length;
+  } catch (err) {
+    console.warn("[cron] burying abandoned invoices failed:", err instanceof Error ? err.message.slice(0, 160) : "");
+  }
+
   // "Private for a week" means gone after a week: once the summary token has
   // expired, delete the encrypted decode + extraction rows too — UNLESS the
   // customer opted in to retention (month-to-month comparison). What always
@@ -69,5 +93,5 @@ export async function GET(req: NextRequest) {
     console.warn("[purge] expiry pass skipped (migration 0003 applied?):", err instanceof Error ? err.message.slice(0, 120) : "");
   }
 
-  return NextResponse.json({ ok: true, purged, expiredPurged, retentionDays: RETENTION_DAYS });
+  return NextResponse.json({ ok: true, purged, buried, expiredPurged, retentionDays: RETENTION_DAYS });
 }

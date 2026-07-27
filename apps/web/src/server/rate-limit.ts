@@ -1,5 +1,6 @@
 import { and, eq, gte } from "drizzle-orm";
 import { db, schema } from "@bills/db";
+import { isInFlightStatus } from "@bills/shared";
 
 /**
  * Per-customer abuse limits, DB-backed (no Redis dependency):
@@ -20,9 +21,24 @@ export const MAX_PAGES_PER_BILL = Number(process.env.MAX_PAGES_PER_BILL ?? 10);
  */
 const ATTEMPT_MULTIPLIER = 3;
 
+/**
+ * How long an in-flight invoice may sit before it is presumed dead.
+ *
+ * A whole analysis runs inside one function invocation capped at
+ * `maxDuration = 800s`, so nothing legitimately stays in-flight beyond ~13
+ * minutes. 30 gives generous headroom for queue hand-offs and retries while
+ * still reclaiming a slot the same hour rather than never.
+ */
+export const STALE_IN_FLIGHT_MINUTES = Number(process.env.STALE_IN_FLIGHT_MINUTES ?? 30);
+
 export interface QuotaUsage {
-  /** Bills that counted against the allowance (everything except `failed`). */
+  /** Bills that counted against the allowance. */
   counted: number;
+  /**
+   * In-flight rows old enough to be presumed dead. They are excluded from
+   * `counted` — a run that crashed is our failure, not the customer's.
+   */
+  stale: number;
   /** Every intake attempt in the window, failures included. */
   attempts: number;
   countedLimit: number;
@@ -37,17 +53,36 @@ export interface QuotaUsage {
   nextSlotAt: string | null;
 }
 
-/** The rolling-24h tally behind `billQuotaExceeded`, for diagnostics. */
-export async function billQuotaUsage(customerId: string): Promise<QuotaUsage> {
-  const since = new Date(Date.now() - 24 * 3600 * 1000);
-  const rows = await db()
-    .select({ status: schema.invoices.status, createdAt: schema.invoices.createdAt })
-    .from(schema.invoices)
-    .where(and(eq(schema.invoices.customerId, customerId), gte(schema.invoices.createdAt, since)));
-
+/**
+ * Decide a customer's quota state from their recent invoice rows. Pure so the
+ * rule — not just the query — can be tested.
+ *
+ * Two kinds of row do NOT count against the allowance:
+ *  - `failed`: a clean failure is our problem, not the customer's
+ *  - an in-flight row older than STALE_IN_FLIGHT_MINUTES: a run that died
+ *    without ever reaching a terminal status. Before this, such a row held a
+ *    slot permanently, so a handful of timeouts could lock someone out for
+ *    good while they had received nothing.
+ */
+export function summarizeQuota(
+  rows: Array<{ status: string; createdAt: Date }>,
+  now: Date = new Date(),
+): QuotaUsage {
+  const staleBefore = now.getTime() - STALE_IN_FLIGHT_MINUTES * 60_000;
   const byStatus: Record<string, number> = {};
-  for (const r of rows) byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
-  const counted = rows.filter((r) => r.status !== "failed").length;
+  let counted = 0;
+  let stale = 0;
+
+  for (const r of rows) {
+    byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+    if (r.status === "failed") continue;
+    if (isInFlightStatus(r.status) && r.createdAt.getTime() < staleBefore) {
+      stale++;
+      continue;
+    }
+    counted++;
+  }
+
   const attemptLimit = MAX_BILLS_PER_DAY * ATTEMPT_MULTIPLIER;
   const oldest = rows.reduce<Date | null>(
     (acc, r) => (acc === null || r.createdAt < acc ? r.createdAt : acc),
@@ -56,6 +91,7 @@ export async function billQuotaUsage(customerId: string): Promise<QuotaUsage> {
 
   return {
     counted,
+    stale,
     attempts: rows.length,
     countedLimit: MAX_BILLS_PER_DAY,
     attemptLimit,
@@ -64,6 +100,16 @@ export async function billQuotaUsage(customerId: string): Promise<QuotaUsage> {
     oldestAt: oldest?.toISOString() ?? null,
     nextSlotAt: oldest ? new Date(oldest.getTime() + 24 * 3600 * 1000).toISOString() : null,
   };
+}
+
+/** The rolling-24h tally behind `billQuotaExceeded`, for diagnostics. */
+export async function billQuotaUsage(customerId: string): Promise<QuotaUsage> {
+  const since = new Date(Date.now() - 24 * 3600 * 1000);
+  const rows = await db()
+    .select({ status: schema.invoices.status, createdAt: schema.invoices.createdAt })
+    .from(schema.invoices)
+    .where(and(eq(schema.invoices.customerId, customerId), gte(schema.invoices.createdAt, since)));
+  return summarizeQuota(rows);
 }
 
 export async function billQuotaExceeded(customerId: string): Promise<boolean> {
