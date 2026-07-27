@@ -102,6 +102,8 @@ const removeAddons: SavingsLever<MobileFields> = {
     pt: "Cancelar serviços extra não usados",
     de: "Ungenutzte Zusatzoptionen kündigen",
     he: "ביטול שירותים נלווים שאינם בשימוש",
+    ru: "Отключить неиспользуемые доп. услуги",
+    zh: "取消未使用的附加服务",
   },
   promptFragment:
     "For recurring add-ons, propose cancelling ones that look unused or duplicated. The saving is the SUM of the cited add-on amounts — cite each add-on's amount path individually.",
@@ -133,6 +135,8 @@ const removeAddons: SavingsLever<MobileFields> = {
       pt: `Responda "Agir" e pedimos à ${provider} para os remover — ou faça-o na app da ${provider}, em serviços.`,
       de: `Antworten Sie "Handeln" und wir bitten ${provider} um die Kündigung — oder erledigen Sie es in der ${provider}-App unter Optionen.`,
       he: `השיבו "לפעולה" ונבקש מ־${provider} להסיר אותם — או עשו זאת באפליקציה של ${provider} תחת שירותים.`,
+      ru: `Ответьте «Действовать», и мы попросим ${provider} их отключить — или сделайте это сами в приложении ${provider} в разделе услуг.`,
+      zh: `回复「立即行动」，我们会请 ${provider} 取消这些服务 — 或在 ${provider} 应用的「增值服务」中自行取消。`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -148,6 +152,8 @@ const lowerTier: SavingsLever<MobileFields> = {
     pt: "Descer para um plano ajustado ao seu uso real",
     de: "In einen Tarif wechseln, der zur echten Nutzung passt",
     he: "מעבר למסלול שמתאים לשימוש האמיתי",
+    ru: "Перейти на тариф под реальное потребление",
+    zh: "改用与实际用量匹配的套餐",
   },
   promptFragment:
     "When usage data shows the customer uses far less than the plan allowance (e.g. 100 GB used of 800 GB), propose moving DOWN a tier with the CURRENT provider: a plan covering ~1.5-2x actual usage. This is the provider's own data about the customer — the strongest possible evidence; cite the dataUsedGb and dataAllowanceGb paths. comparisonOffers whose provider IS the current provider are that provider's own current lineup — the ideal citation for this lever (real price, no switching needed). Only attach a number if such an offer (or a smaller tier printed on the bill) exists; otherwise describe the move qualitatively with the exact GB figures and no invented price.",
@@ -173,6 +179,8 @@ const lowerTier: SavingsLever<MobileFields> = {
       pt: `Usou ${used} do seu plafond de ${allowance}. Pergunte à ${provider} que planos inferiores cobrem o seu uso real — não diga um preço, deixe-os listar os escalões.`,
       de: `Sie haben ${used} von ${allowance} verbraucht. Fragen Sie ${provider}, welche kleineren Tarife Ihre echte Nutzung abdecken — nennen Sie keinen Preis, lassen Sie sich die Stufen auflisten.`,
       he: `השתמשתם ב־${used} מתוך ${allowance}. שאלו את ${provider} אילו מסלולים קטנים יותר מכסים את השימוש האמיתי שלכם — אל תגידו מחיר, תנו להם למנות את המסלולים.`,
+      ru: `Вы использовали ${used} из ${allowance}. Спросите ${provider}, какие меньшие тарифы покрывают ваше реальное потребление — не называйте цену, пусть они перечислят варианты.`,
+      zh: `您用了 ${allowance} 中的 ${used}。问问 ${provider} 哪些更小的套餐能覆盖您的实际用量 — 不要先说价格，让他们列出档位。`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -188,6 +196,8 @@ const consolidateLines: SavingsLever<MobileFields> = {
     pt: "Juntar as suas linhas num plano familiar/multilinha",
     de: "Ihre Anschlüsse in einem Familien-/Mehrfachtarif bündeln",
     he: "איחוד הקווים במסלול משפחתי/מרובה קווים",
+    ru: "Объединить линии в семейный тариф",
+    zh: "将多条号码合并为家庭套餐",
   },
   promptFragment:
     "The bill carries several lines billed separately. Multi-line/family plans usually price additional lines far below standalone ones. Only attach a number if a cited comparison offer covers all the lines; otherwise qualitative — name the line count and each line's amount from the bill.",
@@ -209,6 +219,8 @@ const consolidateLines: SavingsLever<MobileFields> = {
       pt: `Está a pagar ${n} linhas em separado. Pergunte à ${provider} quanto custariam os planos multilinha/familiares para todas — deixe-os listar as opções.`,
       de: `Sie zahlen ${n} Anschlüsse einzeln. Fragen Sie ${provider}, was ein Mehrfach-/Familientarif für alle kosten würde — lassen Sie sich die Optionen auflisten.`,
       he: `אתם משלמים על ${n} קווים בנפרד. שאלו את ${provider} כמה יעלה מסלול משפחתי/מרובה קווים לכולם — תנו להם למנות את האפשרויות.`,
+      ru: `Вы платите за ${n} линий по отдельности. Спросите ${provider}, сколько стоил бы семейный тариф на все — пусть перечислят варианты.`,
+      zh: `您在为 ${n} 条号码分别付费。问问 ${provider} 家庭套餐把它们合起来要多少钱 — 让他们列出选项。`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -224,6 +236,8 @@ const rightsizePlan: SavingsLever<MobileFields> = {
     pt: "Mudar para um plano com melhor preço",
     de: "Zu einem günstigeren Tarif wechseln",
     he: "מעבר למסלול במחיר טוב יותר",
+    ru: "Перейти на тариф с лучшей ценой",
+    zh: "换到价格更优的套餐",
   },
   promptFragment:
     "If a comparison plan beats the current base fee, propose it citing the offer id — but ONLY when the offer's known conditions cover the customer's actual usage (allowance comfortably above dataUsedGb). Without comparison data, describe the lever qualitatively — no number.",
@@ -239,6 +253,8 @@ const rightsizePlan: SavingsLever<MobileFields> = {
       pt: `Responda "Agir" e ajudamos na mudança — a portabilidade mantém o seu número.`,
       de: `Antworten Sie "Handeln" und wir helfen beim Wechsel — Ihre Nummer nehmen Sie mit.`,
       he: `השיבו "לפעולה" ונעזור במעבר — ניוד מספר שומר על המספר שלכם.`,
+      ru: `Ответьте «Действовать», и мы поможем с переходом — номер сохранится благодаря переносу.`,
+      zh: `回复「立即行动」，我们协助您转网 — 携号转网可保留原号码。`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -247,7 +263,7 @@ const rightsizePlan: SavingsLever<MobileFields> = {
 export const mobilePack: CategoryPack<MobileFields> = {
   id: "mobile",
   version: "0.2.0",
-  displayName: { en: "Mobile", es: "Móvil", fr: "Mobile", pt: "Telemóvel", de: "Mobilfunk", he: "סלולר" },
+  displayName: { en: "Mobile", es: "Móvil", fr: "Mobile", pt: "Telemóvel", de: "Mobilfunk", he: "סלולר", ru: "Мобильная связь", zh: "手机" },
   extractionSchema: MobileFieldsSchema,
   extractionHints: {
     addOns: "Recurring extra services billed on top of the plan (insurance, premium SMS, content subscriptions, cloud).",

@@ -26,6 +26,8 @@ const renegotiate: SavingsLever<BroadbandFields> = {
     pt: "Renegociar o preço fora de fidelização",
     de: "Preis nach Vertragsende neu verhandeln",
     he: "משא ומתן על המחיר שאחרי תקופת ההתחייבות",
+    ru: "Пересмотреть цену после окончания договора",
+    zh: "重新议定合约期满后的价格",
   },
   promptFragment:
     "If the customer pays the out-of-contract price (or the contract has ended), the saving is out-of-contract price minus in-contract/new-customer price when both are extracted. Cite both paths.",
@@ -52,6 +54,8 @@ const renegotiate: SavingsLever<BroadbandFields> = {
       pt: `Responda "Agir" e contactamos a ${provider} por si — ou ligue, diga que pondera sair e peça o preço de novo cliente.`,
       de: `Antworten Sie "Handeln" und wir kontaktieren ${provider} für Sie — oder rufen Sie an und fragen Sie nach dem Neukundenpreis.`,
       he: `השיבו "לפעולה" וניצור קשר עם ${provider} עבורכם — או התקשרו, אמרו שאתם שוקלים לעזוב ובקשו את מחיר הלקוח החדש.`,
+      ru: `Ответьте «Действовать», и мы свяжемся с ${provider} за вас — или позвоните сами, скажите, что рассматриваете уход, и попросите цену для новых клиентов.`,
+      zh: `回复「立即行动」，我们替您联系 ${provider} — 或自己打电话，说您在考虑转网，并要求新客户价格。`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -67,6 +71,8 @@ const switchProvider: SavingsLever<BroadbandFields> = {
     pt: "Mudar de fornecedor de internet",
     de: "Internetanbieter wechseln",
     he: "מעבר לספק אינטרנט אחר",
+    ru: "Сменить интернет-провайдера",
+    zh: "更换宽带运营商",
   },
   promptFragment:
     "If a comparison offer with comparable speed beats the current monthly price, propose switching, citing the offer id.",
@@ -82,6 +88,8 @@ const switchProvider: SavingsLever<BroadbandFields> = {
       pt: `Responda "Agir" para iniciar a mudança — o novo fornecedor normalmente trata do cancelamento.`,
       de: `Antworten Sie "Handeln", um den Wechsel zu starten — der neue Anbieter übernimmt meist die Kündigung.`,
       he: `השיבו "לפעולה" כדי להתחיל את המעבר — הספק החדש בדרך כלל מטפל בניתוק.`,
+      ru: `Ответьте «Действовать», чтобы начать переход — новый провайдер обычно сам оформляет отключение.`,
+      zh: `回复「立即行动」开始转网 — 新运营商通常会代为办理停机。`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -97,6 +105,8 @@ const claimOutageCredits: SavingsLever<BroadbandFields> = {
     pt: "Reclamar créditos por falhas que já teve",
     de: "Gutschriften für erlittene Ausfälle einfordern",
     he: "דרישת זיכויים על תקלות שכבר היו",
+    ru: "Запросить компенсацию за уже случившиеся сбои",
+    zh: "申请已发生故障的补偿",
   },
   promptFragment:
     "Outage/degraded-service credits are typically owed by policy but only issued ON REQUEST — professional bill negotiators win a large share of their savings exactly here. Suggest the customer asks whether any service incidents this period qualify for a credit. Never state an amount unless a credit line is printed on the bill.",
@@ -111,6 +121,8 @@ const claimOutageCredits: SavingsLever<BroadbandFields> = {
       pt: `Se o serviço falhou ou esteve lento neste período, pergunte à ${provider}: "Houve incidentes na minha zona? Quero o crédito correspondente." Raramente o oferecem por iniciativa própria.`,
       de: `Bei Ausfällen oder langsamem Dienst fragen Sie ${provider}: „Gab es Störungen in meinem Gebiet? Ich möchte die entsprechende Gutschrift." Von selbst wird sie selten angeboten.`,
       he: `אם השירות נפל או האט בתקופה הזו, שאלו את ${provider}: "היו תקלות באזור שלי במחזור הזה? אבקש את הזיכוי המתאים." הם כמעט אף פעם לא מציעים מיוזמתם.`,
+      ru: `Если связь пропадала или тормозила, спросите ${provider}: «Были ли аварии в моём районе в этом периоде? Прошу соответствующую компенсацию». Сами они её почти никогда не предлагают.`,
+      zh: `如果本期出现断网或网速变慢，问 ${provider}：「我所在区域本期有故障吗？我要求相应补偿。」他们几乎从不主动提供。`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -126,6 +138,8 @@ const dropEquipmentFees: SavingsLever<BroadbandFields> = {
     pt: "Eliminar o aluguer de equipamento",
     de: "Gerätemiete streichen",
     he: "ביטול דמי שכירות על ציוד",
+    ru: "Отказаться от аренды оборудования",
+    zh: "取消设备租赁费",
   },
   promptFragment:
     "If the bill carries router/set-top rental fees, propose returning the equipment (own router) or asking for the fee to be waived. The saving is the SUM of the cited equipmentFees amount paths — cite each individually.",
@@ -153,6 +167,8 @@ const dropEquipmentFees: SavingsLever<BroadbandFields> = {
       pt: `Pergunte à ${provider} se a mensalidade do equipamento pode ser retirada — ou verifique se aceitam router próprio.`,
       de: `Fragen Sie ${provider}, ob die Miete entfallen kann — oder prüfen Sie, ob ein eigener Router erlaubt ist.`,
       he: `שאלו את ${provider} אם אפשר לוותר על דמי השכירות — או בדקו אם מותר נתב עצמאי והחזירו את שלהם.`,
+      ru: `Спросите ${provider}, можно ли отменить плату за аренду — или уточните, разрешён ли свой роутер, и верните их оборудование.`,
+      zh: `问问 ${provider} 能否免除租赁费 — 或确认是否允许自备路由器，然后归还他们的设备。`,
     };
     return steps[locale] ?? steps.en!;
   },
@@ -161,7 +177,7 @@ const dropEquipmentFees: SavingsLever<BroadbandFields> = {
 export const broadbandPack: CategoryPack<BroadbandFields> = {
   id: "broadband",
   version: "0.2.0",
-  displayName: { en: "Broadband", es: "Internet", fr: "Internet", pt: "Internet", de: "Internet", he: "אינטרנט" },
+  displayName: { en: "Broadband", es: "Internet", fr: "Internet", pt: "Internet", de: "Internet", he: "אינטרנט", ru: "Интернет", zh: "宽带" },
   extractionSchema: BroadbandFieldsSchema,
   extractionHints: {
     outOfContractPrice:

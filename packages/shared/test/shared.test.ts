@@ -35,7 +35,10 @@ describe("locale", () => {
   it("maps WhatsApp locale tags", () => {
     expect(resolveLocale("pt_BR")).toBe("pt");
     expect(resolveLocale("es-MX")).toBe("es");
-    expect(resolveLocale("zh_CN")).toBe("en");
+    expect(resolveLocale("zh_CN")).toBe("zh");
+    expect(resolveLocale("ru-RU")).toBe("ru");
+    expect(resolveLocale("he_IL")).toBe("he");
+    expect(resolveLocale("ja_JP")).toBe("en"); // unsupported → English
     expect(resolveLocale(undefined)).toBe("en");
   });
 });

@@ -28,6 +28,35 @@ describe("translation LQA (numeric invariance)", () => {
     const { fellBack } = lqaMerge(["Consumo 1.234,56"], ["Usage 1,234.56"]);
     expect(fellBack).toBe(0);
   });
+
+  it("currency and percent symbols must survive untouched", () => {
+    expect(lqaMerge(["Total 49.89 ₪"], ["Итого 49.89 ₪"], "ru").fellBack).toBe(0);
+    // symbol dropped:
+    expect(lqaMerge(["Total 49.89 ₪"], ["Итого 49.89"], "ru").fellBack).toBe(1);
+    // symbol swapped for another currency — the classic silent corruption:
+    expect(lqaMerge(["Total 49.89 ₪"], ["Итого 49.89 $"], "ru").fellBack).toBe(1);
+    expect(lqaMerge(["Descuento 18%"], ["Скидка 18%"], "ru").fellBack).toBe(0);
+    expect(lqaMerge(["Descuento 18%"], ["Скидка 18"], "ru").fellBack).toBe(1);
+  });
+
+  it("a non-Latin target must actually come back in that script", () => {
+    // Correct translations pass.
+    expect(lqaMerge(["Monthly subscription fee"], ["Ежемесячная абонентская плата"], "ru").fellBack).toBe(0);
+    expect(lqaMerge(["Monthly subscription fee"], ["每月订阅费"], "zh").fellBack).toBe(0);
+    expect(lqaMerge(["Monthly subscription fee"], ["דמי מנוי חודשיים"], "he").fellBack).toBe(0);
+
+    // The dangerous case: perfect digits, perfect symbols, wrong language.
+    // Numeric LQA alone would wave these through.
+    expect(lqaMerge(["Monthly subscription fee 49.89 ₪"], ["Cuota mensual 49.89 ₪"], "ru").fellBack).toBe(1);
+    expect(lqaMerge(["Monthly subscription fee 49.89 ₪"], ["Monthly subscription fee 49.89 ₪"], "zh").fellBack).toBe(1);
+
+    // Short brand tokens and codes legitimately pass through untranslated.
+    expect(lqaMerge(["Vodafone"], ["Vodafone"], "zh").fellBack).toBe(0);
+    expect(lqaMerge(["5G"], ["5G"], "ru").fellBack).toBe(0);
+
+    // Latin-script targets share the alphabet — no script check applies.
+    expect(lqaMerge(["Monthly subscription fee"], ["Cuota mensual"], "es").fellBack).toBe(0);
+  });
 });
 
 describe("usageFrom", () => {

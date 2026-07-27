@@ -35,17 +35,61 @@ export interface BillTranslation {
 
 const digitRuns = (s: string): string => (s.match(/\d+/g) ?? []).sort().join("|");
 
+/** Symbols that must survive translation untouched, with their counts. */
+const INVARIANT_SYMBOLS = /[₪€$£¥₽%]/g;
+const symbolCounts = (s: string): string =>
+  (s.match(INVARIANT_SYMBOLS) ?? []).sort().join("");
+
+/**
+ * Script expected in the translation, for languages that don't share the
+ * Latin alphabet. A model that echoes the source language back produces
+ * perfect digits and perfect symbols — only a script check catches it.
+ */
+const TARGET_SCRIPT: Record<string, RegExp> = {
+  he: /[\u0590-\u05FF]/,
+  ru: /[\u0400-\u04FF]/,
+  zh: /[\u4E00-\u9FFF\u3400-\u4DBF]/,
+  ja: /[\u3040-\u30FF\u4E00-\u9FFF]/,
+  ar: /[\u0600-\u06FF]/,
+  el: /[\u0370-\u03FF]/,
+};
+
+/**
+ * A phrase worth script-checking: multiple words and real length. Single
+ * tokens are brands or codes ("Vodafone", "5G") that legitimately pass
+ * through a translation unchanged.
+ */
+const isPhrase = (s: string): boolean => {
+  const words = s.trim().split(/\s+/).filter((w) => /\p{L}/u.test(w));
+  return words.length >= 2 && (s.match(/\p{L}/gu) ?? []).length >= 8;
+};
+
 /**
  * Merge translated strings over sources, falling back per item when LQA
- * fails (length mismatch → full fallback; per-item digit mismatch or empty
- * translation of non-empty source → that item falls back).
+ * fails. Checks, in order of severity:
+ *  - array length mismatch → full fallback (alignment is unrecoverable)
+ *  - empty translation of non-empty source
+ *  - digit sequences changed (numbers are invariant under translation)
+ *  - currency/percent symbols added, dropped or swapped
+ *  - non-Latin target with no character of that script in a multi-word
+ *    phrase (the model answered in the wrong language)
  */
-export function lqaMerge(source: string[], translated: string[]): { merged: string[]; fellBack: number } {
+export function lqaMerge(
+  source: string[],
+  translated: string[],
+  targetLanguage?: string,
+): { merged: string[]; fellBack: number } {
   if (translated.length !== source.length) return { merged: [...source], fellBack: source.length };
+  const script = targetLanguage ? TARGET_SCRIPT[targetLanguage.toLowerCase().slice(0, 2)] : undefined;
   let fellBack = 0;
   const merged = source.map((src, i) => {
     const tr = translated[i]!.trim();
-    if ((src.trim().length > 0 && tr.length === 0) || digitRuns(tr) !== digitRuns(src)) {
+    const failed =
+      (src.trim().length > 0 && tr.length === 0) ||
+      digitRuns(tr) !== digitRuns(src) ||
+      symbolCounts(tr) !== symbolCounts(src) ||
+      (script !== undefined && isPhrase(src) && !script.test(tr));
+    if (failed) {
       fellBack++;
       return src;
     }
@@ -104,9 +148,9 @@ Hard rules:
   const parsed = response.parsed_output as z.infer<typeof TranslationSchema> | null;
   if (!parsed) return null;
 
-  const items = lqaMerge(source.lineItemLabels, parsed.lineItemLabels);
-  const steps = lqaMerge(source.printedNextSteps, parsed.printedNextSteps);
-  const discounts = lqaMerge(source.discountLabels, parsed.discountLabels);
+  const items = lqaMerge(source.lineItemLabels, parsed.lineItemLabels, targetLanguage);
+  const steps = lqaMerge(source.printedNextSteps, parsed.printedNextSteps, targetLanguage);
+  const discounts = lqaMerge(source.discountLabels, parsed.discountLabels, targetLanguage);
 
   return {
     language: targetLanguage,

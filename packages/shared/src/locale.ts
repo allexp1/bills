@@ -1,5 +1,5 @@
 /** Launch locales. Copy, WhatsApp templates and web strings exist for each. */
-export const SUPPORTED_LOCALES = ["en", "es", "fr", "pt", "de", "he"] as const;
+export const SUPPORTED_LOCALES = ["en", "es", "fr", "pt", "de", "he", "ru", "zh"] as const;
 
 /** Right-to-left locales — pages set dir accordingly. */
 export const RTL_LOCALES: readonly string[] = ["he"];
