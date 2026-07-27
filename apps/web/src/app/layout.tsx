@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { themeInitScript } from "../components/theme-toggle.js";
-import "./globals.css";
+/* tailwind.css imports globals.css into a cascade layer. See the note there. */
 import "./tailwind.css";
 
 const geistSans = Geist({

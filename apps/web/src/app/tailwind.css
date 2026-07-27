@@ -3,6 +3,14 @@
    (/try and /s/[token]) still depend on globals.css, and a global reset
    would break them. Theme + utilities only. */
 
+/* globals.css is pulled in here rather than in the layout so it can sit in a
+   named layer. Unlayered CSS outranks every layer, so left as-is its element
+   selectors (h1, h2, p) would beat Tailwind utility classes and flatten the
+   new type scale. Declaring the order puts utilities on top while the legacy
+   screens keep their styling. */
+@layer legacy, theme, utilities;
+
+@import "./globals.css" layer(legacy);
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
@@ -109,48 +117,57 @@
     transform 180ms ease;
 }
 
-.fx *,
-.fx *::before,
-.fx *::after {
-  box-sizing: border-box;
-}
+/* Scoped normalisation, deliberately placed in the theme layer so Tailwind
+   utilities still win. The legacy stylesheet uppercases headings and sets its
+   own tracking and colours, none of which belong on Fixplo surfaces. */
+@layer theme {
+  .fx *,
+  .fx *::before,
+  .fx *::after {
+    box-sizing: border-box;
+  }
 
-.fx h1,
-.fx h2,
-.fx h3,
-.fx h4,
-.fx p,
-.fx figure,
-.fx blockquote {
-  margin: 0;
-}
+  .fx h1,
+  .fx h2,
+  .fx h3,
+  .fx h4,
+  .fx p,
+  .fx figure,
+  .fx blockquote {
+    margin: 0;
+    text-transform: none;
+    letter-spacing: normal;
+    color: inherit;
+    font-family: inherit;
+  }
 
-.fx ul,
-.fx ol {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
+  .fx ul,
+  .fx ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
 
-.fx a {
-  color: inherit;
-  text-decoration: none;
-}
+  .fx a {
+    color: inherit;
+    text-decoration: none;
+  }
 
-.fx button {
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
+  .fx button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
 
-.fx input,
-.fx select {
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 0;
+  .fx input,
+  .fx select {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+  }
 }
 
 .fx input:focus-visible,
