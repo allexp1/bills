@@ -67,13 +67,18 @@ export async function GET(req: NextRequest) {
 
   if (action === "research") {
     const started = Date.now();
-    const { record, researched } = await getOrResearchPlaybook({
+    const { record, researched, error, detail } = await getOrResearchPlaybook({
       country,
       utility,
       language: params.get("language"),
       force: params.get("force") === "1",
     });
-    if (!record) return NextResponse.json({ error: "research_failed" }, { status: 502 });
+    if (!record) {
+      return NextResponse.json(
+        { error: error ?? "research_failed", detail, tookMs: Date.now() - started },
+        { status: 502 },
+      );
+    }
     return NextResponse.json({
       researched,
       tookMs: Date.now() - started,

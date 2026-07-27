@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "@bills/db";
-import { researchUtilityPlaybook } from "@bills/llm";
+import { isPlaybookFailure, researchUtilityPlaybook } from "@bills/llm";
 import {
   establishedTerms,
   mergeObservations,
@@ -32,6 +32,9 @@ export interface PlaybookLookup {
   record: PlaybookRecord | null;
   /** True when this call performed the (slow) research. */
   researched: boolean;
+  /** Why research failed, when it did — surfaced by the admin route. */
+  error?: string;
+  detail?: string;
 }
 
 const norm = (s: string): string => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
@@ -91,14 +94,17 @@ export async function getOrResearchPlaybook(args: {
   }
   if (!existing && args.cachedOnly) return { record: null, researched: false };
 
-  const researched = await researchUtilityPlaybook({
+  const result = await researchUtilityPlaybook({
     country,
     utility,
     language: args.language ?? null,
     providers: args.providerName ? [args.providerName] : [],
     observedTerms: existing ? establishedTerms(existing.observations) : [],
   });
-  if (!researched) return { record: existing, researched: false };
+  if (isPlaybookFailure(result)) {
+    return { record: existing, researched: false, error: result.error, detail: result.detail };
+  }
+  const researched = result;
 
   const version = (existing?.version ?? 0) + 1;
   await db()
