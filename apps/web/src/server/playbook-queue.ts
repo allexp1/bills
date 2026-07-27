@@ -112,11 +112,29 @@ export async function seedMarkets(args: {
   };
 }
 
+/**
+ * Distinguish "this market cannot be researched" from "the API is down".
+ *
+ * The attempt counter exists to stop a genuinely impossible market consuming
+ * budget forever. A global outage — no credits, rate limited, provider 5xx —
+ * is neither the market's fault nor permanent, and letting it burn attempts
+ * would mark the entire queue `failed` during an incident and require a
+ * manual reset afterwards. On these, the run aborts with the queue intact.
+ */
+export function isGlobalOutage(detail: string | undefined): boolean {
+  if (!detail) return false;
+  return /credit balance|billing|rate.?limit|429|overloaded|529|50\d\s|internal server error|timeout/i.test(
+    detail,
+  );
+}
+
 export interface DrainResult {
   attempted: number;
   researched: number;
   failed: number;
   remaining: number;
+  /** Set when the run stopped early because the API itself was unavailable. */
+  abortedBy?: string;
   results: Array<{ country: string; utility: string; ok: boolean; switchable?: boolean; error?: string }>;
 }
 
@@ -141,6 +159,7 @@ export async function drainQueue(args: { limit?: number; budgetMs?: number } = {
   const results: DrainResult["results"] = [];
   let researched = 0;
   let failed = 0;
+  let abortedBy: string | undefined;
 
   for (const row of pending) {
     // A single research pass can take minutes; never start one we cannot finish.
@@ -162,16 +181,23 @@ export async function drainQueue(args: { limit?: number; budgetMs?: number } = {
       });
     } else {
       failed++;
+      const outage = isGlobalOutage(detail);
       await db()
         .update(schema.utilityPlaybooks)
         .set({
-          attempts: row.attempts + 1,
+          // An outage is not this market's fault — record it, but do not
+          // spend one of its three chances on it.
+          attempts: outage ? row.attempts : row.attempts + 1,
           lastError: `${error ?? "unknown"}${detail ? `: ${detail.slice(0, 200)}` : ""}`,
-          // Three strikes and it stops consuming budget; visible in `list`.
-          status: row.attempts + 1 >= 3 ? "failed" : "pending",
+          status: !outage && row.attempts + 1 >= 3 ? "failed" : "pending",
         })
         .where(eq(schema.utilityPlaybooks.id, row.id));
       results.push({ country: row.country, utility: row.utility, ok: false, error: error ?? "unknown" });
+      if (outage) {
+        // Every remaining call would fail the same way; stop wasting the run.
+        abortedBy = detail?.slice(0, 160) ?? error;
+        break;
+      }
     }
   }
 
@@ -180,5 +206,5 @@ export async function drainQueue(args: { limit?: number; budgetMs?: number } = {
     .from(schema.utilityPlaybooks)
     .where(eq(schema.utilityPlaybooks.status, "pending"));
 
-  return { attempted: pending.length, researched, failed, remaining: count, results };
+  return { attempted: pending.length, researched, failed, remaining: count, results, ...(abortedBy ? { abortedBy } : {}) };
 }
