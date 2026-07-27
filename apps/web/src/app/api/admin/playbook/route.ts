@@ -4,6 +4,12 @@ import { asc } from "drizzle-orm";
 import { db, schema } from "@bills/db";
 import { establishedTerms, type PlaybookObservation } from "@bills/category-packs";
 import { getOrResearchPlaybook, readPlaybook } from "../../../../server/playbook-store.js";
+import {
+  DEFAULT_COUNTRIES,
+  DEFAULT_UTILITIES,
+  drainQueue,
+  seedMarkets,
+} from "../../../../server/playbook-queue.js";
 
 export const runtime = "nodejs";
 /** Research is a slow multi-search pass; give it Fluid-compute headroom. */
@@ -34,6 +40,35 @@ export async function GET(req: NextRequest) {
   const country = params.get("country") ?? "";
   const utility = params.get("utility") ?? "";
 
+  if (action === "seed") {
+    const countries = (params.get("countries") ?? DEFAULT_COUNTRIES.join(",")).split(",");
+    const utilities = (params.get("utilities") ?? DEFAULT_UTILITIES.join(",")).split(",");
+    const total = countries.filter(Boolean).length * utilities.filter(Boolean).length;
+    // Every queued row becomes a real research call with real cost. Anything
+    // beyond a handful needs saying out loud before it is spent.
+    if (total > 20 && params.get("confirm") !== "1") {
+      return NextResponse.json(
+        {
+          error: "confirm_required",
+          wouldEnqueue: total,
+          estimatedCostUsd: `~$${(total * 0.5).toFixed(0)}–$${(total * 1.5).toFixed(0)}`,
+          hint: "Each market is a multi-search Opus research pass. Re-send with &confirm=1 to queue them, or narrow with &countries=…&utilities=…",
+        },
+        { status: 409 },
+      );
+    }
+    const seeded = await seedMarkets({ countries, utilities });
+    return NextResponse.json({
+      ...seeded,
+      note: "Queued. The playbook-warm cron drains a few per run; use action=drain to push it along now.",
+    });
+  }
+
+  if (action === "drain") {
+    const result = await drainQueue({ limit: Number(params.get("limit") ?? 3) });
+    return NextResponse.json(result);
+  }
+
   if (action === "list") {
     const rows = await db()
       .select({
@@ -44,10 +79,18 @@ export async function GET(req: NextRequest) {
         providers: schema.utilityPlaybooks.providers,
         researchedAt: schema.utilityPlaybooks.researchedAt,
         status: schema.utilityPlaybooks.status,
+        attempts: schema.utilityPlaybooks.attempts,
+        lastError: schema.utilityPlaybooks.lastError,
       })
       .from(schema.utilityPlaybooks)
       .orderBy(asc(schema.utilityPlaybooks.country), asc(schema.utilityPlaybooks.utility));
-    return NextResponse.json({ count: rows.length, markets: rows });
+    return NextResponse.json({
+      count: rows.length,
+      researched: rows.filter((r) => r.status === "ok").length,
+      pending: rows.filter((r) => r.status === "pending").length,
+      failed: rows.filter((r) => r.status === "failed").length,
+      markets: rows,
+    });
   }
 
   if (!country || !utility) {

@@ -315,8 +315,11 @@ export const utilityPlaybooks = pgTable(
     version: integer("version").notNull().default(1),
     /** Shape version of `data`, so old rows can be migrated or ignored. */
     schemaVersion: integer("schema_version").notNull().default(1),
-    /** The UtilityPlaybook document. Public knowledge — not encrypted. */
-    data: jsonb("data").notNull(),
+    /**
+     * The UtilityPlaybook document. Public knowledge — not encrypted.
+     * Null while the row is queued for research but not yet researched.
+     */
+    data: jsonb("data"),
     /** Anonymised {label, count} line-item wording seen on bills of this kind. */
     observations: jsonb("observations").$type<Array<{ label: string; count: number }>>(),
     /** Distinct bills of this (country, utility) analysed so far. */
@@ -325,8 +328,12 @@ export const utilityPlaybooks = pgTable(
     providers: jsonb("providers").$type<string[]>(),
     model: text("model"),
     promptVersion: text("prompt_version"),
-    /** ok | researching | failed */
+    /** ok | pending | failed — `pending` rows are the warming cron's queue. */
     status: text("status").notNull().default("ok"),
+    /** Lower drains first, so launch markets warm before speculative ones. */
+    priority: integer("priority").notNull().default(100),
+    lastError: text("last_error"),
+    attempts: integer("attempts").notNull().default(0),
     researchedAt: timestamp("researched_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

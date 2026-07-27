@@ -131,6 +131,9 @@ export async function getOrResearchPlaybook(args: {
         data: researched.playbook,
         promptVersion: researched.promptVersion,
         status: "ok",
+        // A row that finally succeeds stops looking like a failing one.
+        attempts: 0,
+        lastError: null,
         researchedAt: new Date(),
       },
     });
