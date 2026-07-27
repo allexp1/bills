@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import { themeInitScript } from "../components/theme-toggle.js";
+import { clerkAppearance, clerkEnabled } from "../lib/clerk-enabled.js";
 /* tailwind.css imports globals.css into a cascade layer. See the note there. */
 import "./tailwind.css";
 
@@ -35,7 +37,7 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
+  const shell = (
     <html
       lang="en"
       suppressHydrationWarning
@@ -44,7 +46,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body>{children}</body>
+      {/* ClerkProvider belongs inside body, not wrapping html. */}
+      <body>
+        {clerkEnabled ? (
+          <ClerkProvider appearance={clerkAppearance}>{children}</ClerkProvider>
+        ) : (
+          children
+        )}
+      </body>
     </html>
   );
+
+  return shell;
 }
