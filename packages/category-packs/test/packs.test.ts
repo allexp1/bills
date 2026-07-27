@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CommonFields } from "../src/common-schema.js";
 import { allPacks, mergedExtractionSchema } from "../src/registry.js";
 import { broadbandPack, type BroadbandFields } from "../src/packs/broadband/index.js";
-import { mobilePack, parseGb, type MobileFields } from "../src/packs/mobile/index.js";
+import { formatDataSize, mobilePack, parseGb, type MobileFields } from "../src/packs/mobile/index.js";
 import { energyPack, type EnergyFields } from "../src/packs/energy/index.js";
 import type { SavingsClaim } from "../src/pack.js";
 
@@ -265,10 +265,25 @@ describe("mobile usage right-sizing", () => {
     expect(v.verdict).toBe("verified"); // 45,00 − 29,99 = 15,01
   });
 
-  it("nextStep cites the exact printed usage and warns against naming a price", () => {
+  it("nextStep states usage and allowance in ONE unit, never mixing MB with GB", () => {
     const step = lever.nextStep(fields, common(), "en");
-    expect(step).toContain("102,4");
+    expect(step).toContain("102 GB");
     expect(step).toContain("800 GB");
+    expect(step).not.toMatch(/\bMB\b/);
+
+    // The MB-printed case is the one that matters: both sides must read as GB.
+    const mbBill = { ...fields, dataUsedGb: "20182.039 MB" };
+    const mbStep = lever.nextStep(mbBill, common(), "en");
+    expect(mbStep).toContain("20 GB");
+    expect(mbStep).not.toContain("20182");
+  });
+
+  it("formatDataSize normalizes every printed form to a single unit", () => {
+    expect(formatDataSize("20182.039 MB")).toBe("20 GB");
+    expect(formatDataSize("800GB")).toBe("800 GB");
+    expect(formatDataSize("1.5 TB")).toBe("1536 GB");
+    expect(formatDataSize("512 Mo")).toBe("512 MB");
+    expect(formatDataSize(null)).toBe("?");
   });
 });
 

@@ -69,6 +69,21 @@ export function parseGb(printed: string | null): number | null {
   return value * unit;
 }
 
+/**
+ * One unit, everywhere: a printed quantity rendered as human GB ("20182.039 MB"
+ * → "20 GB"). Mixing MB and GB across a comparison is unreadable — 800 GB vs
+ * 20182 MB looks like the smaller number wins. Falls back to the printed
+ * string when it can't be parsed.
+ */
+export function formatDataSize(printed: string | null): string {
+  const gb = parseGb(printed);
+  if (gb === null) return printed ?? "?";
+  if (!Number.isFinite(gb)) return printed ?? "∞";
+  if (gb >= 10) return `${Math.round(gb)} GB`;
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  return `${Math.round(gb * 1024)} MB`;
+}
+
 /** used/allowance when both are known and allowance is finite; null otherwise. */
 function utilization(f: MobileFields): number | null {
   const used = parseGb(f.dataUsedGb);
@@ -149,8 +164,8 @@ const lowerTier: SavingsLever<MobileFields> = {
   },
   nextStep: (f, common, locale) => {
     const provider = common.providerName ?? "";
-    const used = f.dataUsedGb ?? "?";
-    const allowance = f.dataAllowanceGb ?? "?";
+    const used = formatDataSize(f.dataUsedGb);
+    const allowance = formatDataSize(f.dataAllowanceGb);
     const steps: Record<string, string> = {
       en: `You used ${used} of your ${allowance} allowance. Ask ${provider} which smaller plans cover your real usage — don't name a price, let them list the tiers.`,
       es: `Usaste ${used} de tu bono de ${allowance}. Pregunta a ${provider} qué planes inferiores cubren tu uso real — no digas un precio, deja que enumeren los tramos.`,

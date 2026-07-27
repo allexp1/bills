@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@bills/db";
 import { buildProviderChatCta, formatDelta, t as tPipeline, verifySummaryToken } from "@bills/pipeline";
-import { parseGb } from "@bills/category-packs";
+import { formatDataSize, parseGb } from "@bills/category-packs";
 import { formatMoney, parseAmount, resolveLocale, type SupportedLocale } from "@bills/shared";
 import { loadGuardedDecode } from "../../../server/decode-store.js";
 import { env } from "../../../server/env.js";
@@ -398,12 +398,16 @@ function fill(template: string, provider: string): string {
   return template.replaceAll("{provider}", provider);
 }
 
-/** Human-scale data size: 15043 MB → "15 GB"; keeps small values precise. */
-function fmtGb(gb: number): string {
-  if (!Number.isFinite(gb)) return "∞";
-  if (gb >= 10) return `${Math.round(gb)} GB`;
-  if (gb >= 1) return `${gb.toFixed(1)} GB`;
-  return `${Math.round(gb * 1024)} MB`;
+/**
+ * Render a template's {placeholders} with each value bidi-isolated, so a
+ * quantity like "800 GB" keeps its unit attached inside RTL text instead of
+ * being reordered to "GB 800".
+ */
+function fillNodes(template: string, values: Record<string, string>) {
+  return template.split(/(\{[a-zA-Z]+\})/g).map((part, i) => {
+    const key = part.match(/^\{([a-zA-Z]+)\}$/)?.[1];
+    return key && values[key] !== undefined ? <bdi key={i}>{values[key]}</bdi> : <span key={i}>{part}</span>;
+  });
 }
 
 /**
@@ -428,8 +432,14 @@ function glance(
     return minor === null ? raw : formatMoney({ amountMinor: minor, currency }, locale);
   };
 
-  const stats: Array<{ label: string; value: string; sub?: string }> = [];
-  let meter: { pct: number; severity: "low" | "ok" | "high"; verdict: string; end: string } | null = null;
+  const stats: Array<{ label: string; value: string; subTemplate?: string; subValues?: Record<string, string> }> = [];
+  let meter: {
+    pct: number;
+    severity: "low" | "ok" | "high";
+    template: string;
+    values: Record<string, string>;
+    end: string;
+  } | null = null;
 
   if (extraction.category === "mobile") {
     const usedPrinted = printed(fields.dataUsedGb);
@@ -438,33 +448,34 @@ function glance(
     const allowance = parseGb(allowancePrinted);
 
     if (usedPrinted) {
-      // Human value first (15 GB), the bill's own string as the footnote.
-      const human = used !== null ? fmtGb(used) : usedPrinted;
-      const subs = [
-        allowancePrinted ? s.stOf!.replace("{n}", allowance !== null ? fmtGb(allowance) : allowancePrinted) : null,
-        human !== usedPrinted ? s.printedAs!.replace("{v}", usedPrinted) : null,
-      ].filter(Boolean);
-      stats.push({ label: s.stDataUsed!, value: human, ...(subs.length ? { sub: subs.join(" · ") } : {}) });
+      // One unit throughout: both sides of the comparison in GB. The bill's raw
+      // MB string is deliberately NOT shown — "20182 MB of 800 GB" is unreadable.
+      stats.push({
+        label: s.stDataUsed!,
+        value: formatDataSize(usedPrinted),
+        ...(allowancePrinted ? { subTemplate: s.stOf!, subValues: { n: formatDataSize(allowancePrinted) } } : {}),
+      });
     }
 
     if (used !== null && allowance !== null && Number.isFinite(allowance) && allowance > 0) {
       const ratio = used / allowance;
       const pct = Math.min(100, Math.round(ratio * 100));
       const severity = ratio < 0.35 ? "low" : ratio > 0.9 ? "high" : "ok";
-      const verdict =
+      const template = severity === "low" ? s.meterLow! : severity === "high" ? s.meterHigh! : s.meterOk!;
+      const values: Record<string, string> =
         severity === "low"
-          ? s.meterLow!.replace("{allowance}", fmtGb(allowance)).replace("{used}", fmtGb(used))
-          : severity === "high"
-            ? s.meterHigh!.replace("{pct}", String(pct))
-            : s.meterOk!.replace("{pct}", String(pct));
-      meter = { pct, severity, verdict, end: fmtGb(allowance) };
+          ? { allowance: formatDataSize(allowancePrinted), used: formatDataSize(usedPrinted) }
+          : { pct: String(pct) };
+      meter = { pct, severity, template, values, end: formatDataSize(allowancePrinted) };
     }
 
     if (printed(fields.minutesUsed)) {
       stats.push({
         label: s.stMinutes!,
         value: printed(fields.minutesUsed)!,
-        ...(printed(fields.minutesIncluded) ? { sub: s.stOf!.replace("{n}", printed(fields.minutesIncluded)!) } : {}),
+        ...(printed(fields.minutesIncluded)
+          ? { subTemplate: s.stOf!, subValues: { n: printed(fields.minutesIncluded)! } }
+          : {}),
       });
     }
     const fee = money(printed(fields.baseFee));
@@ -491,9 +502,9 @@ function glance(
                 <span className="value" dir="auto">
                   <bdi>{st.value}</bdi>
                 </span>
-                {st.sub && (
+                {st.subTemplate && (
                   <span className="sub" dir="auto">
-                    {st.sub}
+                    {fillNodes(st.subTemplate, st.subValues ?? {})}
                   </span>
                 )}
               </div>
@@ -502,13 +513,13 @@ function glance(
         )}
         {meter && (
           <div className={`meter ${meter.severity}`}>
-            <p className="meter-verdict">{meter.verdict}</p>
+            <p className="meter-verdict">{fillNodes(meter.template, meter.values)}</p>
             <div className="meter-track">
               <div className="meter-fill" style={{ width: `${Math.max(2, meter.pct)}%` }} />
             </div>
             <div className="meter-scale">
-              <span>0</span>
-              <span>{meter.end}</span>
+              <bdi>0</bdi>
+              <bdi>{meter.end}</bdi>
             </div>
           </div>
         )}

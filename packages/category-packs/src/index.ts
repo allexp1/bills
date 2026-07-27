@@ -16,4 +16,4 @@ export { ManualDataComparisonSource } from "./comparison/manual.js";
 export { lookupProviderChat, type ProviderChatChannel, type ProviderChatEntry } from "./providers/directory.js";
 export { energyPack, EnergyFieldsSchema, type EnergyFields } from "./packs/energy/index.js";
 export { broadbandPack, BroadbandFieldsSchema, type BroadbandFields } from "./packs/broadband/index.js";
-export { mobilePack, MobileFieldsSchema, parseGb, type MobileFields } from "./packs/mobile/index.js";
+export { mobilePack, MobileFieldsSchema, parseGb, formatDataSize, type MobileFields } from "./packs/mobile/index.js";
