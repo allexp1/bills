@@ -172,8 +172,11 @@ export async function decodeBill(args: {
    * per character. So: a generous budget, and one retry under a hard brevity
    * cap if the model still runs to the limit.
    */
-  const call = (maxTokens: number, brevity: string | null) =>
-    anthropic().messages.parse({
+  // Streamed: a 32k-token budget puts the worst case past the SDK's 10-minute
+  // non-streaming ceiling. Streaming also means a slow decode can never trip
+  // a request timeout mid-flight.
+  const call = async (maxTokens: number, brevity: string | null) => {
+    const stream = anthropic().messages.stream({
       model: MODEL,
       max_tokens: maxTokens,
       thinking: { type: "adaptive" },
@@ -181,23 +184,45 @@ export async function decodeBill(args: {
       messages: [{ role: "user", content: brevity ? `${userContent}\n\n${brevity}` : userContent }],
       output_config: { format: zodOutputFormat(DecodeOutputSchema) },
     });
+    const message = await stream.finalMessage();
+    const text = message.content
+      .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+    return { message, text };
+  };
 
-  let response;
+  const parseDecode = (text: string): DecodeOutput => {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start === -1 || end <= start) throw new Error("no JSON object in decode response");
+    return DecodeOutputSchema.parse(JSON.parse(text.slice(start, end + 1)));
+  };
+
+  let result = await call(32000, null);
+  let decode: DecodeOutput;
   try {
-    response = await call(32000, null);
+    decode = parseDecode(result.text);
   } catch (err) {
-    const truncated = err instanceof Error && /parse structured output/i.test(err.message);
-    if (!truncated) throw err;
-    console.warn("[decode] output truncated — retrying with a brevity cap");
-    response = await call(32000, BREVITY_RETRY);
+    // Truncation is the one failure structured output can't recover from —
+    // retry once under a hard brevity cap that keeps every claim and citation.
+    console.warn(
+      `[decode] unparseable output (stop_reason=${result.message.stop_reason}) — retrying with a brevity cap:`,
+      err instanceof Error ? err.message.slice(0, 120) : "",
+    );
+    result = await call(32000, BREVITY_RETRY);
+    decode = parseDecode(result.text);
   }
 
-  const decode = response.parsed_output as DecodeOutput | null;
-  if (!decode) throw new Error(`decode parse failed (stop_reason=${response.stop_reason})`);
-  if (response.stop_reason === "max_tokens") {
+  if (result.message.stop_reason === "max_tokens") {
     console.warn("[decode] stop_reason=max_tokens — output was near the ceiling");
   }
-  return { decode, usage: usageFrom(response.usage), model: MODEL, promptVersion: DECODE_PROMPT_VERSION };
+  return {
+    decode,
+    usage: usageFrom(result.message.usage),
+    model: MODEL,
+    promptVersion: DECODE_PROMPT_VERSION,
+  };
 }
 
 const BREVITY_RETRY = `LENGTH LIMIT — your previous attempt ran past the output budget. Produce the same structure, materially shorter: at most 5 sections and 3 explainMoreQueue entries, every explanation under 300 characters, at most 3 evidence lines and 2 objections in the call script. Keep all savings claims and their grounding; cut prose, never numbers or citations.`;
