@@ -17,6 +17,7 @@
     "@bills/llm": "workspace:*",
     "@bills/pipeline": "workspace:*",
     "@bills/shared": "workspace:*",
+    "@clerk/nextjs": "^7.6.1",
     "@upstash/qstash": "^2.8.0",
     "@vercel/blob": "^0.27.0",
     "drizzle-orm": "^0.44.0",
@@ -26,11 +27,11 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.20.1",
     "@types/react": "^19.0.0",
-    "typescript": "^5.8.0",
-    "vitest": "^3.1.0",
     "tailwindcss": "^4.1.0",
-    "@tailwindcss/postcss": "^4.1.0"
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
   }
 }
