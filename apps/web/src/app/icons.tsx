@@ -138,6 +138,83 @@ export function IconReceipt({ size }: { size?: number }) {
   );
 }
 
+export function IconSparkles({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M11 3.5c.6 3.4 2.1 4.9 5.5 5.5-3.4.6-4.9 2.1-5.5 5.5-.6-3.4-2.1-4.9-5.5-5.5 3.4-.6 4.9-2.1 5.5-5.5Z" />
+      <path d="M18 14.5c.3 1.7 1 2.4 2.7 2.7-1.7.3-2.4 1-2.7 2.7-.3-1.7-1-2.4-2.7-2.7 1.7-.3 2.4-1 2.7-2.7Z" />
+    </Svg>
+  );
+}
+
+export function IconAlertTriangle({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M12 4.5 21 19.5H3l9-15Z" />
+      <path d="M12 10.5v4" />
+      <path d="M12 17.2v.3" />
+    </Svg>
+  );
+}
+
+export function IconTag({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M12.5 3H20a1 1 0 0 1 1 1v7.5L11 21.5 2.5 13 12.5 3Z" />
+      <path d="M16.8 7.2v.3" />
+    </Svg>
+  );
+}
+
+export function IconLightbulb({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M9 18h6" />
+      <path d="M10 21h4" />
+      <path d="M12 3a6 6 0 0 1 3.6 10.8c-.6.5-.9 1.1-1 1.8l-.1.4H9.5l-.1-.4c-.1-.7-.4-1.3-1-1.8A6 6 0 0 1 12 3Z" />
+    </Svg>
+  );
+}
+
+export function IconCheckCircle({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m8 12.2 2.7 2.7L16 9.6" />
+    </Svg>
+  );
+}
+
+export function IconBell({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M6 9a6 6 0 0 1 12 0c0 4 1.2 5.5 1.8 6.2.3.4 0 .8-.5.8H4.7c-.5 0-.8-.4-.5-.8C4.8 14.5 6 13 6 9Z" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </Svg>
+  );
+}
+
+export function IconWallet({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18a1 1 0 0 1 1 1v2" />
+      <path d="M3 7.5v10A2.5 2.5 0 0 0 5.5 20H19a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2H5.5A2.5 2.5 0 0 1 3 7.5Z" />
+      <path d="M16.8 14.2v.3" />
+    </Svg>
+  );
+}
+
+export function IconCalendar({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <rect x="3.5" y="5.5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 10h17" />
+      <path d="M8 3.5v4" />
+      <path d="M16 3.5v4" />
+    </Svg>
+  );
+}
+
 export function IconListCheck({ size }: { size?: number }) {
   return (
     <Svg size={size}>

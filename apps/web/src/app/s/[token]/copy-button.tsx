@@ -2,13 +2,22 @@
 
 import { useState } from "react";
 
-export function CopyButton({ text, label, copiedLabel }: { text: string; label: string; copiedLabel: string }) {
+export function CopyButton({
+  text,
+  label,
+  copiedLabel,
+  className = "cta",
+}: {
+  text: string;
+  label: string;
+  copiedLabel: string;
+  className?: string;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <button
       type="button"
-      className="cta"
-      style={{ display: "inline-block", cursor: "pointer", border: "none", font: "inherit" }}
+      className={className}
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
