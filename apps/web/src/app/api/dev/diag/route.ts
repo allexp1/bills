@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
-import { sql } from "drizzle-orm";
-import { db } from "@bills/db";
+import { gte, sql } from "drizzle-orm";
+import { db, schema } from "@bills/db";
+import { MAX_BILLS_PER_DAY, billQuotaUsage } from "../../../../server/rate-limit.js";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -44,12 +45,36 @@ export async function GET(req: NextRequest) {
     dbConnect = "no connection string configured";
   }
 
+  // Rolling-24h bill tally per customer — the exact numbers behind a "you've
+  // reached today's limit" message. Customer ids are opaque ULIDs; no phone
+  // number, name or bill content is returned.
+  let quota: unknown = "not_attempted";
+  if (dbConnect === "ok") {
+    try {
+      const since = new Date(Date.now() - 24 * 3600 * 1000);
+      const customers = await db()
+        .selectDistinct({ customerId: schema.invoices.customerId })
+        .from(schema.invoices)
+        .where(gte(schema.invoices.createdAt, since));
+      quota = {
+        windowStart: since.toISOString(),
+        maxBillsPerDay: MAX_BILLS_PER_DAY,
+        customers: await Promise.all(
+          customers.map(async (c) => ({ customerId: c.customerId, ...(await billQuotaUsage(c.customerId)) })),
+        ),
+      };
+    } catch (err) {
+      quota = `error: ${sanitize(err)}`;
+    }
+  }
+
   return NextResponse.json({
     envPresence,
     dbConnect,
     tableCount: tables.length,
     tables,
     expectedTables: 14,
+    quota,
     hint:
       dbConnect !== "ok"
         ? "Add the Supabase integration to this Vercel project (injects POSTGRES_URL) and redeploy."

@@ -15,14 +15,54 @@ export const MAX_PAGES_PER_BILL = Number(process.env.MAX_PAGES_PER_BILL ?? 10);
  */
 const ATTEMPT_MULTIPLIER = 3;
 
-export async function billQuotaExceeded(customerId: string): Promise<boolean> {
+export interface QuotaUsage {
+  /** Bills that counted against the allowance (everything except `failed`). */
+  counted: number;
+  /** Every intake attempt in the window, failures included. */
+  attempts: number;
+  countedLimit: number;
+  attemptLimit: number;
+  exceeded: boolean;
+  byStatus: Record<string, number>;
+  /**
+   * When the oldest row in the window ages out — the moment one slot frees
+   * up. The limit is a rolling 24h window, not a calendar day.
+   */
+  oldestAt: string | null;
+  nextSlotAt: string | null;
+}
+
+/** The rolling-24h tally behind `billQuotaExceeded`, for diagnostics. */
+export async function billQuotaUsage(customerId: string): Promise<QuotaUsage> {
   const since = new Date(Date.now() - 24 * 3600 * 1000);
   const rows = await db()
-    .select({ status: schema.invoices.status })
+    .select({ status: schema.invoices.status, createdAt: schema.invoices.createdAt })
     .from(schema.invoices)
     .where(and(eq(schema.invoices.customerId, customerId), gte(schema.invoices.createdAt, since)));
-  const successful = rows.filter((r) => r.status !== "failed").length;
-  return successful >= MAX_BILLS_PER_DAY || rows.length >= MAX_BILLS_PER_DAY * ATTEMPT_MULTIPLIER;
+
+  const byStatus: Record<string, number> = {};
+  for (const r of rows) byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+  const counted = rows.filter((r) => r.status !== "failed").length;
+  const attemptLimit = MAX_BILLS_PER_DAY * ATTEMPT_MULTIPLIER;
+  const oldest = rows.reduce<Date | null>(
+    (acc, r) => (acc === null || r.createdAt < acc ? r.createdAt : acc),
+    null,
+  );
+
+  return {
+    counted,
+    attempts: rows.length,
+    countedLimit: MAX_BILLS_PER_DAY,
+    attemptLimit,
+    exceeded: counted >= MAX_BILLS_PER_DAY || rows.length >= attemptLimit,
+    byStatus,
+    oldestAt: oldest?.toISOString() ?? null,
+    nextSlotAt: oldest ? new Date(oldest.getTime() + 24 * 3600 * 1000).toISOString() : null,
+  };
+}
+
+export async function billQuotaExceeded(customerId: string): Promise<boolean> {
+  return (await billQuotaUsage(customerId)).exceeded;
 }
 
 export const QUOTA_COPY: Record<string, string> = {
