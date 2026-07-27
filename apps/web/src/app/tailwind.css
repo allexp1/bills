@@ -1,0 +1,189 @@
+/* Fixplo design system: dark neumorphism with a light counterpart.
+   Tailwind v4 is loaded WITHOUT preflight on purpose. The legacy screens
+   (/try and /s/[token]) still depend on globals.css, and a global reset
+   would break them. Theme + utilities only. */
+
+/* globals.css is pulled in here rather than in the layout so it can sit in a
+   named layer. Unlayered CSS outranks every layer, so left as-is its element
+   selectors (h1, h2, p) would beat Tailwind utility classes and flatten the
+   new type scale. Declaring the order puts utilities on top while the legacy
+   screens keep their styling. */
+@layer legacy, theme, utilities;
+
+@import "./globals.css" layer(legacy);
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Dark mode is driven by [data-theme] on <html>, set by an inline script in
+   the root layout, so it matches the legacy stylesheet's own convention. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme {
+  --color-brand: #7c5cfc;
+  --color-brand-soft: #9b83fd;
+  --color-brand-deep: #5c3ee0;
+  --color-savings: #10b981;
+  --color-alert: #ef4444;
+  --color-warning: #f59e0b;
+  --color-info: #3b82f6;
+
+  --color-base: var(--fx-bg-base);
+  --color-card: var(--fx-bg-card);
+  --color-card-hover: var(--fx-bg-card-hover);
+  --color-ink: var(--fx-text-primary);
+  --color-muted: var(--fx-text-muted);
+  --color-dim: var(--fx-text-dim);
+  --color-hairline: var(--fx-border);
+
+  --radius-card: 16px;
+  --radius-button: 12px;
+  --radius-pill: 24px;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Fixplo surfaces are scoped to .fx so the legacy pages are untouched. */
+.fx {
+  --fx-bg-base: #1e1b2e;
+  --fx-bg-card: #262340;
+  --fx-bg-card-hover: #2d2a4a;
+  --fx-text-primary: #e8e4f0;
+  --fx-text-muted: #8a86a0;
+  --fx-text-dim: #5a5770;
+  --fx-border: rgba(124, 92, 252, 0.15);
+
+  --fx-raised: 8px 8px 16px rgba(0, 0, 0, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.05);
+  --fx-raised-sm: 4px 4px 10px rgba(0, 0, 0, 0.38), -4px -4px 10px rgba(255, 255, 255, 0.045);
+  --fx-raised-lg: 14px 14px 28px rgba(0, 0, 0, 0.45), -14px -14px 28px rgba(255, 255, 255, 0.055);
+  --fx-inset: inset 4px 4px 8px rgba(0, 0, 0, 0.4), inset -4px -4px 8px rgba(255, 255, 255, 0.05);
+  --fx-inset-deep: inset 7px 7px 14px rgba(0, 0, 0, 0.45), inset -7px -7px 14px rgba(255, 255, 255, 0.05);
+
+  background-color: var(--fx-bg-base);
+  color: var(--fx-text-primary);
+  font-family: var(--font-sans);
+  color-scheme: dark;
+}
+
+[data-theme="light"] .fx,
+.fx[data-theme="light"] {
+  --fx-bg-base: #e8e4f0;
+  --fx-bg-card: #f0ecf5;
+  --fx-bg-card-hover: #ebe7f2;
+  --fx-text-primary: #2d2a3e;
+  --fx-text-muted: #6b6880;
+  --fx-text-dim: #9490a5;
+  --fx-border: rgba(124, 92, 252, 0.1);
+
+  --fx-raised: 8px 8px 16px rgba(174, 168, 186, 0.5), -8px -8px 16px rgba(255, 255, 255, 0.8);
+  --fx-raised-sm: 4px 4px 10px rgba(174, 168, 186, 0.45), -4px -4px 10px rgba(255, 255, 255, 0.75);
+  --fx-raised-lg: 14px 14px 28px rgba(174, 168, 186, 0.55), -14px -14px 28px rgba(255, 255, 255, 0.85);
+  --fx-inset: inset 4px 4px 8px rgba(174, 168, 186, 0.5), inset -4px -4px 8px rgba(255, 255, 255, 0.8);
+  --fx-inset-deep: inset 7px 7px 14px rgba(174, 168, 186, 0.55), inset -7px -7px 14px rgba(255, 255, 255, 0.85);
+
+  color-scheme: light;
+}
+
+@utility neu-raised {
+  box-shadow: var(--fx-raised);
+}
+
+@utility neu-raised-sm {
+  box-shadow: var(--fx-raised-sm);
+}
+
+@utility neu-raised-lg {
+  box-shadow: var(--fx-raised-lg);
+}
+
+@utility neu-inset {
+  box-shadow: var(--fx-inset);
+}
+
+@utility neu-inset-deep {
+  box-shadow: var(--fx-inset-deep);
+}
+
+@utility neu-flat {
+  box-shadow: none;
+}
+
+/* Motion is opt-in and short. Neumorphism reads as physical, so surfaces
+   settle rather than slide. */
+@utility neu-press {
+  transition:
+    box-shadow 180ms ease,
+    background-color 180ms ease,
+    transform 180ms ease;
+}
+
+/* Scoped normalisation, deliberately placed in the theme layer so Tailwind
+   utilities still win. The legacy stylesheet uppercases headings and sets its
+   own tracking and colours, none of which belong on Fixplo surfaces. */
+@layer theme {
+  .fx *,
+  .fx *::before,
+  .fx *::after {
+    box-sizing: border-box;
+  }
+
+  .fx h1,
+  .fx h2,
+  .fx h3,
+  .fx h4,
+  .fx p,
+  .fx figure,
+  .fx blockquote {
+    margin: 0;
+    text-transform: none;
+    letter-spacing: normal;
+    color: inherit;
+    font-family: inherit;
+  }
+
+  .fx ul,
+  .fx ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .fx a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .fx button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .fx input,
+  .fx select {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+  }
+}
+
+.fx input:focus-visible,
+.fx select:focus-visible,
+.fx button:focus-visible,
+.fx a:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx *,
+  .fx *::before,
+  .fx *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
