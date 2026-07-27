@@ -9,3 +9,13 @@ coverage/
 .env.*.local
 .vercel/
 .DS_Store
+
+# Clerk CLI agent skills: regenerable via `clerk init`, machine-local tooling
+# rather than application code, and they carry scripts that run with agent
+# permissions. Kept out of the branch so they are an explicit choice per
+# machine rather than something inherited silently by whoever clones next.
+.agents/
+skills-lock.json
+# .claude/skills entries are symlinks into .agents, so committing them would
+# leave dangling links in every fresh clone.
+.claude/skills/

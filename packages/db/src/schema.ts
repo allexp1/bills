@@ -39,6 +39,11 @@ export const customers = pgTable(
     retentionConsentAt: timestamp("retention_consent_at", { withTimezone: true }),
     /** When we asked (WhatsApp asks once, post-first-delivery). */
     retentionPromptedAt: timestamp("retention_prompted_at", { withTimezone: true }),
+    /** Clerk user id, linked onto the existing customer row rather than replacing it. */
+    clerkUserId: text("clerk_user_id"),
+    email: text("email"),
+    /** When the web login was joined to this row, by verified phone or at signup. */
+    linkedAt: timestamp("linked_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

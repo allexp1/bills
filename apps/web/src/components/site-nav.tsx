@@ -1,3 +1,4 @@
+import { AuthControls } from "./auth-controls.js";
 import { Logo } from "./logo.js";
 import { ThemeToggle } from "./theme-toggle.js";
 import { NeuButton } from "./ui/neu.js";
@@ -29,8 +30,9 @@ export function SiteNav() {
           ))}
         </ul>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <ThemeToggle />
+          <AuthControls />
           <NeuButton href="/upload" size="sm">
             Upload a bill
           </NeuButton>
