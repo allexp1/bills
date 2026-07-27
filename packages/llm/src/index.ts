@@ -22,3 +22,4 @@ export {
   type RelayMove,
   type RelayContext,
 } from "./negotiate.js";
+export { researchUtilityPlaybook, PLAYBOOK_PROMPT_VERSION, type PlaybookResearchResult } from "./playbook-research.js";

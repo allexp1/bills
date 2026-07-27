@@ -1,5 +1,11 @@
 import { and, desc, eq, ne } from "drizzle-orm";
-import { getPack, lookupProviderChat } from "@bills/category-packs";
+import {
+  getPack,
+  lookupProviderChat,
+  playbookPack,
+  withPlaybookHints,
+  type PlaybookRecord,
+} from "@bills/category-packs";
 import { db, encryptJson, schema } from "@bills/db";
 import { decodeBill, extractBill, gatherOffers, translateBillView, type BillPage, type PriorBillSummary } from "@bills/llm";
 import {
@@ -15,8 +21,9 @@ import { SUPPORTED_LOCALES, parseAmount, type SupportedLocale } from "@bills/sha
 import { keys } from "./wiring.js";
 import { env } from "./env.js";
 import { loadGuardedDecode } from "./decode-store.js";
+import { getOrResearchPlaybook, recordBillForPlaybook } from "./playbook-store.js";
 
-export type PipelineStage = "extracting" | "researching" | "decoding" | "guardrails" | "finalizing";
+export type PipelineStage = "extracting" | "market" | "researching" | "decoding" | "guardrails" | "finalizing";
 
 export interface PipelineRunResult {
   summaryUrl: string;
@@ -79,7 +86,7 @@ export async function runBillPipeline(args: {
 
     progress("extracting");
     const { extraction, usage, model, promptVersion } = await extractBill(pages);
-    const pack = getPack(extraction.category);
+    const basePack = getPack(extraction.category);
 
     // Language policy: everything renders in the BILL's language by default —
     // a Hebrew bill gets a Hebrew page. The requested locale applies only
@@ -94,8 +101,8 @@ export async function runBillPipeline(args: {
       .insert(schema.extractions)
       .values({
         invoiceId,
-        packId: pack?.id ?? null,
-        packVersion: pack?.version ?? null,
+        packId: basePack?.id ?? null,
+        packVersion: basePack?.version ?? null,
         model,
         promptVersion,
         data: encryptJson(keys(), extraction),
@@ -104,7 +111,42 @@ export async function runBillPipeline(args: {
         status: extraction.category === "unknown" || extraction.category_confidence < 0.7 ? "low_confidence" : "ok",
       })
       .returning({ id: schema.extractions.id });
-    if (!pack) throw new PipelineError("unsupported_category", `category=${extraction.category}`);
+    if (!basePack) throw new PipelineError("unsupported_category", `category=${extraction.category}`);
+
+    /**
+     * Market knowledge for this (country, utility). For the open `utility`
+     * category it IS the pack — glossary, gotchas and savings levers all come
+     * from research, because a water bill in Israel and one in Spain have
+     * almost nothing in common. For the bespoke packs it is additive: the
+     * hand-written levers stay, and the researched market facts join them.
+     *
+     * The first bill in a new market pays for the research; every later one
+     * reads the cached row, and volume milestones re-research with the wording
+     * those bills actually used.
+     */
+    const marketKey =
+      extraction.category === "utility"
+        ? ((extraction.category_fields as Record<string, Record<string, unknown> | null>).utility?.serviceType as string | null) ?? "utility"
+        : extraction.category;
+    let playbook: PlaybookRecord | null = null;
+    if (extraction.common.country) {
+      progress("market");
+      const lookup = await getOrResearchPlaybook({
+        country: extraction.common.country,
+        utility: marketKey,
+        language: extraction.common.billLanguage,
+        providerName: extraction.common.providerName,
+        // Only the open category may block on research; a mobile bill must
+        // never wait on a slow web-search pass it can succeed without.
+        cachedOnly: extraction.category !== "utility",
+      }).catch(() => ({ record: null, researched: false }));
+      playbook = lookup.record;
+    }
+    const pack = !playbook
+      ? basePack
+      : extraction.category === "utility"
+        ? playbookPack({ utility: "utility", country: playbook.country, record: playbook })
+        : withPlaybookHints(basePack, playbook);
 
     await database
       .update(schema.invoices)
@@ -235,6 +277,17 @@ export async function runBillPipeline(args: {
       .update(schema.invoices)
       .set({ status: "delivered", summaryTokenId: tokenRow!.id })
       .where(eq(schema.invoices.id, invoiceId));
+
+    // Feed this bill's market vocabulary back into the playbook so the next
+    // bill of the same kind is decoded better. Labels only, digits stripped,
+    // promoted only above the k-anonymity threshold — see playbook-store.
+    await recordBillForPlaybook({
+      country: extraction.common.country,
+      utility: marketKey,
+      providerName: extraction.common.providerName,
+      lineItemLabels: extraction.common.lineItems.map((li) => li.label),
+      language: extraction.common.billLanguage,
+    });
 
     // Anonymous stats row — whitelist only, no linkage to customer/invoice,
     // month-level time. This is what legitimately survives the 7-day

@@ -6,7 +6,8 @@ import { IconUpload } from "./icons.js";
 /** Pipeline stages streamed by /api/upload, with display copy and target %. */
 const STAGES = [
   { key: "uploading", label: "Uploading your bill", pct: 8 },
-  { key: "extracting", label: "Reading the bill with AI vision", pct: 38 },
+  { key: "extracting", label: "Reading the bill with AI vision", pct: 32 },
+  { key: "market", label: "Researching how this utility works in your country", pct: 46 },
   { key: "researching", label: "Scanning the market for better offers", pct: 62 },
   { key: "decoding", label: "Explaining charges & hunting savings", pct: 84 },
   { key: "guardrails", label: "Verifying every number against your bill", pct: 92 },

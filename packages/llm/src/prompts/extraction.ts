@@ -13,7 +13,7 @@ Hard rules — these are absolute:
 1. Return null for any field not clearly visible on the bill. NEVER guess, infer from typical values, or fill in plausible numbers.
 2. Transcribe amounts EXACTLY as printed (keep the bill's decimal separators, e.g. "89,10").
 3. Record the page number for every line item.
-4. Detect the bill's category from its content. If genuinely ambiguous, use "unknown" with low confidence.
+4. Detect the bill's category from its content. Use "energy", "broadband" or "mobile" when the bill clearly is one of those. Use "utility" for ANY OTHER metered or subscription bill — water, sewerage, waste, heating, council tax, insurance, gym, alarm monitoring — and record what it actually is in utility.serviceType. Reserve "unknown" for documents that are not a consumer bill at all.
 5. Mask all but the last 3 digits of any personal phone numbers you transcribe.
 6. printedNextSteps: copy instructions the bill itself prints (tariff end dates, "to switch do X", "your renewal quote is Y", cancellation URLs) — verbatim, translated to nothing.
 7. currency as ISO-4217, country as ISO-3166 alpha-2, dates as ISO YYYY-MM-DD.

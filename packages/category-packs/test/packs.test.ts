@@ -46,6 +46,7 @@ describe("mergedExtractionSchema", () => {
       category_fields: {
         energy: null,
         broadband: null,
+        utility: null,
         mobile: {
           planName: "Fusión",
           baseFee: "45,00",
@@ -69,6 +70,13 @@ describe("mergedExtractionSchema", () => {
 
   it("every pack declares levers with validators and localized titles", () => {
     for (const pack of allPacks()) {
+      // `utility` is the open category: it ships no levers on purpose,
+      // because a lever without market knowledge is a guess. Its levers come
+      // from a researched playbook, which knows whether switching is legal.
+      if (pack.id === "utility") {
+        expect(pack.savingsLevers).toEqual([]);
+        continue;
+      }
       expect(pack.savingsLevers.length).toBeGreaterThan(0);
       for (const lever of pack.savingsLevers) {
         expect(typeof lever.validate).toBe("function");

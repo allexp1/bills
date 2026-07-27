@@ -284,3 +284,52 @@ export const billStats = pgTable("bill_stats", {
   /** Month the analysis ran, YYYY-MM — coarse on purpose. */
   createdMonth: text("created_month").notNull(),
 });
+
+/**
+ * Researched market knowledge for one (country, utility) pair — how that
+ * utility is billed, regulated and discounted in that country.
+ *
+ * GLOBAL BY DESIGN, and deliberately free of customer linkage. Playbooks are
+ * public market facts with cited sources, so they are safe to share across
+ * every customer and, later, across every tenant: research one tenant paid
+ * for makes the product smarter for all of them. That is also why nothing
+ * here survives a deletion request — there is nothing personal in it to
+ * delete. `observations` holds only line-item WORDING with digits stripped,
+ * counted across distinct bills and never promoted below the k-anonymity
+ * threshold in `MIN_DISTINCT_BILLS`.
+ *
+ * Multi-tenancy note: when tenants arrive, this table stays global. A tenant
+ * wanting private overrides gets a separate nullable-tenant override table
+ * layered on top — never a tenant_id here, or the shared-learning property
+ * that makes this design worthwhile is lost.
+ */
+export const utilityPlaybooks = pgTable(
+  "utility_playbooks",
+  {
+    id: id(),
+    /** ISO-3166 alpha-2, uppercase. */
+    country: text("country").notNull(),
+    /** Utility slug: water, waste, council_tax, insurance, mobile, energy… */
+    utility: text("utility").notNull(),
+    /** Bumped on every successful re-research. */
+    version: integer("version").notNull().default(1),
+    /** Shape version of `data`, so old rows can be migrated or ignored. */
+    schemaVersion: integer("schema_version").notNull().default(1),
+    /** The UtilityPlaybook document. Public knowledge — not encrypted. */
+    data: jsonb("data").notNull(),
+    /** Anonymised {label, count} line-item wording seen on bills of this kind. */
+    observations: jsonb("observations").$type<Array<{ label: string; count: number }>>(),
+    /** Distinct bills of this (country, utility) analysed so far. */
+    billsSeen: integer("bills_seen").notNull().default(0),
+    /** Provider names seen in this market — public company names. */
+    providers: jsonb("providers").$type<string[]>(),
+    model: text("model"),
+    promptVersion: text("prompt_version"),
+    /** ok | researching | failed */
+    status: text("status").notNull().default("ok"),
+    researchedAt: timestamp("researched_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("utility_playbooks_key_idx").on(t.country, t.utility)],
+);

@@ -1,6 +1,11 @@
 /** Cross-package domain enums and small value types. */
 
-export const CATEGORIES = ["energy", "broadband", "mobile"] as const;
+/**
+ * "utility" is the open category: any metered or subscription bill without a
+ * bespoke pack (water, waste, council tax, insurance, gym). Its intelligence
+ * comes from a researched per-country playbook rather than hand-written code.
+ */
+export const CATEGORIES = ["energy", "broadband", "mobile", "utility"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 export type InvoiceStatus =
