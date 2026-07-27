@@ -21,7 +21,10 @@ export async function GET(req: NextRequest) {
     return new NextResponse("unauthorized", { status: 401 });
   }
 
-  const perRun = Number(process.env.PLAYBOOK_WARM_PER_RUN ?? 3);
+  // One per run, every 15 minutes. A research pass takes 7-10 minutes and the
+  // function dies at 800s, so a second one in the same run gets killed
+  // mid-call — billed and discarded. More frequent runs beat bigger ones.
+  const perRun = Number(process.env.PLAYBOOK_WARM_PER_RUN ?? 1);
   const result = await drainQueue({ limit: perRun });
   console.log(
     `[playbook-warm] researched ${result.researched}, failed ${result.failed}, ${result.remaining} still queued`,

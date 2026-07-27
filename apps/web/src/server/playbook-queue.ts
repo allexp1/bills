@@ -144,10 +144,17 @@ export interface DrainResult {
  * is visible rather than silently retried forever.
  */
 export async function drainQueue(args: { limit?: number; budgetMs?: number } = {}): Promise<DrainResult> {
-  const limit = Math.min(args.limit ?? 3, 10);
-  // Leave headroom under the route's maxDuration for the final write.
-  const budgetMs = args.budgetMs ?? 640_000;
+  const limit = Math.min(args.limit ?? 1, 10);
+  // The function itself is killed at maxDuration = 800s.
+  const budgetMs = args.budgetMs ?? 780_000;
   const startedAt = Date.now();
+  /**
+   * Observed worst-case for one research pass, grown as we measure. Starting
+   * a market we cannot finish is worse than stopping: the API call still runs
+   * and is still billed, the function is killed mid-flight, and the result is
+   * thrown away. Assume a slow one until proven otherwise.
+   */
+  let slowestMs = 600_000;
 
   const pending = await db()
     .select()
@@ -162,14 +169,17 @@ export async function drainQueue(args: { limit?: number; budgetMs?: number } = {
   let abortedBy: string | undefined;
 
   for (const row of pending) {
-    // A single research pass can take minutes; never start one we cannot finish.
-    if (Date.now() - startedAt > budgetMs) break;
+    // Never START a pass we cannot FINISH — a killed call is billed and lost.
+    const elapsed = Date.now() - startedAt;
+    if (elapsed + slowestMs > budgetMs) break;
 
+    const itemStartedAt = Date.now();
     const { record, error, detail } = await getOrResearchPlaybook({
       country: row.country,
       utility: row.utility,
       force: true,
     });
+    slowestMs = Math.max(slowestMs, Date.now() - itemStartedAt);
 
     if (record) {
       researched++;

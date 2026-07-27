@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/playbook-warm",
-      "schedule": "17 * * * *"
+      "schedule": "*/15 * * * *"
     }
   ]
 }
