@@ -6,7 +6,12 @@ import { db, schema } from "@bills/db";
  *  - max bills per rolling 24h (each bill = 2 expensive Opus calls)
  *  - max pages per bill (image tokens dominate cost)
  */
-export const MAX_BILLS_PER_DAY = Number(process.env.MAX_BILLS_PER_DAY ?? 10);
+/**
+ * Raised from 10 to 50 while the product is in active development — the old
+ * ceiling was being hit by our own testing. Worth revisiting before real
+ * traffic: 50 bills a day is ~100 Opus calls per customer.
+ */
+export const MAX_BILLS_PER_DAY = Number(process.env.MAX_BILLS_PER_DAY ?? 50);
 export const MAX_PAGES_PER_BILL = Number(process.env.MAX_PAGES_PER_BILL ?? 10);
 /**
  * A failed analysis is our problem, not the customer's — it must not burn
