@@ -1214,6 +1214,42 @@ body:has(.sum) {
 .s-trend .delta b {
   color: var(--s-text);
 }
+/* What changed since last month: one labelled row per group, so a six-item
+   diff reads as a list instead of a paragraph. */
+.s-changes {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--s-border);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.s-changes > div {
+  display: flex;
+  gap: 10px;
+  padding: 3px 0;
+}
+.s-changes dt {
+  flex: none;
+  min-width: 7.5em;
+  font-weight: 700;
+  color: var(--s-text);
+}
+.s-changes dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--s-muted);
+  overflow-wrap: anywhere;
+}
+.s-changes dd .more {
+  margin-inline-start: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--s-badge);
+  color: var(--s-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
 
 /* ---------- breakdown / items ---------- */
 
@@ -1295,12 +1331,14 @@ body:has(.sum) {
 }
 .s-item {
   display: flex;
-  align-items: center;
+  /* Align the icon to the FIRST line, not the middle of the block — centring
+     leaves it floating beside the third line of a four-line insight. */
+  align-items: flex-start;
   gap: 12px;
   background: var(--s-card);
   border: 1px solid var(--s-border);
   border-radius: 16px;
-  padding: 13px 14px;
+  padding: 14px 16px;
   font-size: 0.86rem;
   font-weight: 600;
   line-height: 1.55;
@@ -1314,6 +1352,8 @@ body:has(.sum) {
   display: grid;
   place-items: center;
   flex: none;
+  /* Optically centres the 32px tile on a 0.86rem/1.55 first line. */
+  margin-block-start: -2px;
 }
 .s-item.warn .ico {
   background: rgba(251, 191, 36, 0.14);
@@ -1451,6 +1491,10 @@ body:has(.sum) {
   background: #0a1130;
   border-color: var(--s-border);
   border-radius: 16px;
+}
+/* Traffic lights are a fixed motif, not text — they must not mirror in RTL. */
+.sum .terminal .bar {
+  direction: ltr;
 }
 .sum details.s-script > summary {
   cursor: pointer;

@@ -195,6 +195,20 @@ export function SummaryView({
               </section>
             )}
 
+            {actions.length > 0 && (
+              <section className="sum-block b-actions">
+                <span className="s-label">{s.actionsTitle}</span>
+                <div className="s-stack">
+                  {actions.map((a, i) => (
+                    <div key={i} className="s-item">
+                      <span className="ico">{a.icon}</span>
+                      <span className="body">{a.body}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             <section className="sum-block b-cta">
               {chatCta ? (
                 <a
@@ -262,14 +276,21 @@ export function SummaryView({
                     </p>
                   )}
                   {trend.changes.length > 0 && (
-                    <p className="delta" dir="auto">
+                    <dl className="s-changes" dir="auto">
                       {trend.changes.map((c, i) => (
-                        <span key={i}>
-                          {i > 0 && " · "}
-                          <b>{tPipeline(locale, c.key)}:</b> {c.text}
-                        </span>
+                        <div key={i}>
+                          <dt>{tPipeline(locale, c.key)}</dt>
+                          <dd>
+                            {c.text}
+                            {c.more > 0 && (
+                              <bdi dir="ltr" className="more">
+                                +{c.more}
+                              </bdi>
+                            )}
+                          </dd>
+                        </div>
                       ))}
-                    </p>
+                    </dl>
                   )}
                 </div>
               </section>
@@ -432,20 +453,6 @@ export function SummaryView({
                       <span className="body" dir="auto">
                         {g.explanation}
                       </span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {actions.length > 0 && (
-              <section className="sum-block b-actions">
-                <span className="s-label">{s.actionsTitle}</span>
-                <div className="s-stack">
-                  {actions.map((a, i) => (
-                    <div key={i} className="s-item">
-                      <span className="ico">{a.icon}</span>
-                      <span className="body">{a.body}</span>
                     </div>
                   ))}
                 </div>
@@ -806,10 +813,12 @@ function computeBreakdown(
     }
   }
 
-  const rows = candidates[0] ?? (credits ? [{ label: s.brDiscounts!, text: `−${money(credits)}`, credit: true }] : []);
-  if (totalMinor !== null) rows.push({ label: s.brTotal!, text: money(totalMinor), total: true });
-  // A lone total row is the hero number repeated — not worth a card.
-  return rows.length > 1 ? rows : [];
+  const rows = candidates[0];
+  // Without a decomposition that reconciles, the card would just restate the
+  // hero total — the line-item list below already carries the detail.
+  if (!rows || rows.length < 2 || totalMinor === null) return [];
+  rows.push({ label: s.brTotal!, text: money(totalMinor), total: true });
+  return rows;
 }
 
 /**
@@ -824,7 +833,7 @@ function computeTrend(
   max: number;
   direction: "up" | "down" | "flat";
   deltaMinor: number | null;
-  changes: Array<{ key: string; text: string }>;
+  changes: Array<{ key: string; text: string; more: number }>;
 } | null {
   if (!history || !history.vsPrevious || history.totalsTrend.length < 2) return null;
   const points = history.totalsTrend.slice(-6);
@@ -832,11 +841,18 @@ function computeTrend(
   const delta = history.vsPrevious.totalDeltaMinor;
   const direction = delta === null || delta === 0 ? "flat" : delta > 0 ? "up" : "down";
 
-  const changes: Array<{ key: string; text: string }> = [];
+  // A bill can change a dozen lines at once; listing them all turns the card
+  // into a paragraph nobody reads. Name a few, count the rest.
+  const MAX_NAMED = 3;
+  const summarize = (items: Array<{ label: string }>) => ({
+    text: items.slice(0, MAX_NAMED).map((it) => it.label.trim()).join(" · "),
+    more: Math.max(0, items.length - MAX_NAMED),
+  });
+  const changes: Array<{ key: string; text: string; more: number }> = [];
   const { newItems, removedItems, changedItems } = history.vsPrevious;
-  if (newItems.length > 0) changes.push({ key: "histNew", text: newItems.map((i) => i.label).join(", ") });
-  if (removedItems.length > 0) changes.push({ key: "histGone", text: removedItems.map((i) => i.label).join(", ") });
-  if (changedItems.length > 0) changes.push({ key: "histChanged", text: changedItems.map((i) => i.label).join(", ") });
+  if (newItems.length > 0) changes.push({ key: "histNew", ...summarize(newItems) });
+  if (removedItems.length > 0) changes.push({ key: "histGone", ...summarize(removedItems) });
+  if (changedItems.length > 0) changes.push({ key: "histChanged", ...summarize(changedItems) });
 
   return { points, max, direction, deltaMinor: delta, changes };
 }
