@@ -1,5 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
+import { clerkEnabled } from "./lib/clerk-enabled.js";
 
 /**
  * Only the account area is behind Clerk.
@@ -14,12 +15,20 @@ const isProtected = createRouteMatcher(["/portfolio(.*)", "/account(.*)"]);
 
 /* When Clerk is not configured, protected routes redirect home rather than
    crashing the whole site. Preview builds and local runs without keys should
-   still serve the landing page. */
-const clerkConfigured = Boolean(
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY,
-);
-
-export default clerkConfigured
+   still serve the landing page.
+ *
+ * This gate reads the SAME single variable the rest of the app reads, and it
+ * has to. The first version also required CLERK_SECRET_KEY, which broke
+ * production: Next.js inlines non-public variables into the edge bundle at
+ * build time, so the secret did not resolve here even though it was set in
+ * Vercel. The app saw the public key and switched Clerk on, the middleware saw
+ * a missing secret and quietly installed the no-op instead, and every auth()
+ * call then failed with "Clerk can't detect usage of clerkMiddleware()".
+ *
+ * Two gates that can disagree are worse than one gate that is occasionally
+ * wrong, because the disagreement only surfaces in the environment where their
+ * inputs differ. One source of truth, shared with lib/clerk-enabled. */
+export default clerkEnabled
   ? clerkMiddleware(async (auth, req) => {
       if (isProtected(req)) await auth.protect();
     })
