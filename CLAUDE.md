@@ -121,6 +121,18 @@ touch this, test the build with the public key set and the secret unset.
 `clerk-enabled.ts` is server and middleware only. `CLERK_SECRET_KEY` does not
 exist in a browser bundle, so a client import tears hydration.
 
+**Development and production are different Clerk instances with different keys.**
+A `pk_test_` pair only works on localhost: it relies on a dev-browser handshake
+that never happens on a real domain, so on fixplo.ai Clerk loads, reports every
+visitor as signed out, and the form never becomes usable. The symptom in the
+response headers is `x-clerk-auth-reason: dev-browser-missing`. Production needs
+a `pk_live_` / `sk_live_` pair plus the `clerk` and `accounts` CNAMEs on the
+domain. Google and other social connections also need your own OAuth
+credentials on production; Clerk's shared ones are development only.
+
+**Env changes do not redeploy.** `NEXT_PUBLIC_` values are compiled into the
+bundle, so a key added in Vercel reaches nothing until the next build.
+
 Sign-in links onto the existing customer row by **verified phone only**
 (`apps/web/src/server/auth/resolve-customer.ts`). Clerk proves the number,
 `wa_hash` is the same peppered hash. An unverified phone links nothing,
@@ -139,10 +151,9 @@ Voxplo API. Config: `VOXPLO_BASE_URL`, `VOXPLO_API_KEY`, `VOXPLO_CALLER_ID`.
 ## Environment
 
 Set: `DATABASE_URL`, `ANTHROPIC_API_KEY`, `WA_HASH_PEPPER`, blob and QStash
-tokens, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+tokens, and both Clerk keys on Production, now the `pk_live_` / `sk_live_` pair.
 
 Missing or unset:
-- `CLERK_SECRET_KEY` — not reaching production. Sign-in stays off until it does.
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, QStash trio,
   `BLOB_READ_WRITE_TOKEN` were flagged unset earlier.
 
@@ -158,14 +169,11 @@ pnpm --filter @bills/db db:migrate
 
 ## Open work
 
-- Set `CLERK_SECRET_KEY` in Vercel with Production ticked.
 - Product screens still unbuilt: bill summary, authorisation, live call,
   outcome. They need a `negotiations` table first; building them as static
   mockups would mean inventing numbers, which rule 1 forbids.
 - Mobile bottom tab navigation.
 - Em dash cleanup in legacy strings.
-- Stat numbers on the landing page use Geist Mono, which spaces the decimal
-  oddly at display size. Should be sans; keep mono for real bill figures.
 - Playbook queue: 90 market playbooks, self-draining via cron.
   `/api/admin/playbook?action=list`.
 
