@@ -1,36 +1,33 @@
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { Show, UserButton } from "@clerk/nextjs";
 import { clerkEnabled } from "../lib/clerk-enabled.js";
-import { NeuButton } from "./ui/neu.js";
 
 /**
- * Sign in, sign up and the account button, in the header.
+ * Sign in and account controls in the header.
  *
- * Renders nothing at all when Clerk is unconfigured. Showing a sign-in button
- * that cannot work is worse than showing none: the person clicks it, lands
- * somewhere broken, and concludes the product is broken rather than unfinished.
+ * The sign-in link is a plain anchor, rendered unconditionally whenever Clerk
+ * is configured. It used to sit inside <Show when="signed-out">, and on
+ * production that branch rendered nothing at all, so the site had working
+ * authentication with no visible way to reach it. Whatever the cause, the entry
+ * point into an auth system is the wrong place to depend on that auth system
+ * having resolved: it fails closed, and a link that never appears is
+ * indistinguishable from a feature that was never built.
+ *
+ * So the link is ordinary HTML that works without JavaScript and without a
+ * session lookup. Clerk state is used only to add things for people who are
+ * already signed in, which is the direction where failing quiet is harmless.
  */
 export function AuthControls() {
   if (!clerkEnabled) return null;
 
   return (
     <>
-      <Show when="signed-out">
-        <SignInButton mode="modal">
-          <button className="rounded-pill bg-card px-4 py-2 text-sm font-medium text-muted neu-raised-sm neu-press hover:text-ink">
-            Sign in
-          </button>
-        </SignInButton>
-        <SignUpButton mode="modal">
-          <button className="hidden rounded-pill bg-card px-4 py-2 text-sm font-medium text-muted neu-raised-sm neu-press hover:text-ink sm:inline-flex">
-            Create account
-          </button>
-        </SignUpButton>
-      </Show>
-
       <Show when="signed-in">
-        <NeuButton href="/portfolio" tone="quiet" size="sm">
+        <a
+          href="/portfolio"
+          className="rounded-pill bg-card px-4 py-2 text-sm font-medium text-muted neu-raised-sm neu-press hover:text-ink"
+        >
           My bills
-        </NeuButton>
+        </a>
         <span className="inline-flex items-center">
           <UserButton
             appearance={{
@@ -46,6 +43,14 @@ export function AuthControls() {
           />
         </span>
       </Show>
+
+      <a
+        href="/sign-in"
+        data-fx-signin
+        className="rounded-pill bg-card px-4 py-2 text-sm font-medium text-muted neu-raised-sm neu-press hover:text-ink"
+      >
+        Sign in
+      </a>
     </>
   );
 }

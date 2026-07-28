@@ -187,3 +187,12 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* The header sign-in link is plain HTML so it always renders, even if Clerk has
+   not resolved. Once Clerk mounts an account button next to it, the person is
+   signed in and the link is redundant, so it hides itself. Pure CSS, no second
+   dependency on auth state having loaded. */
+.fx nav:has([data-clerk-component="UserButton"]) [data-fx-signin],
+.fx nav:has(.cl-userButton-root) [data-fx-signin] {
+  display: none;
+}
