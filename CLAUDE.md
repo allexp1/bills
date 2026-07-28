@@ -79,21 +79,34 @@ Dark neumorphism, from Figma file `ZhznTdXCbCdAwtFEF9bgMd`. Frames:
 Two layers, deliberately.
 
 1. `packages/db/src/tenant.ts` — `withTenant(db, customerId, fn)` opens a
-   transaction and sets `app.customer_id`. Repository functions in
-   `packages/db/src/repo/` take a `customerId` and filter on it explicitly.
+   transaction, runs `SET LOCAL ROLE bills_tenant`, then sets
+   `app.customer_id`. Repository functions in `packages/db/src/repo/` take a
+   `customerId` and filter on it explicitly.
    `packages/db/test/tenant-guard.test.ts` fails the build if a repo function
    skips the scope or drops the filter.
 2. Migration `0006_tenant_rls.sql` — RLS policies keyed to
    `current_setting('app.customer_id', true)`, granted **to the `bills_tenant`
-   role only**, not FORCEd.
+   role only**.
 
-**Why not FORCE:** ten server files run the pipeline, crons and share page with
-no session. FORCE applies policies to the table owner too, and RLS filters
-silently rather than erroring, so forcing it would stop the WhatsApp bot with
-nothing in the logs. The pipeline connects as owner and is exempt; account
-traffic uses `tenantDb()` as `bills_tenant`.
+**The app connects as `bills_app`, not as the table owner.** RLS was already
+enabled on all eight tables before this work, with a permissive ALL policy for
+`bills_app` so the pipeline, crons and share page can read and write without a
+session. That has to stay true: bills arrive from WhatsApp long before anyone
+visits the site.
 
-**Migration 0006 has NOT been applied to the database yet.** It is safe to run.
+So account traffic does not get a second connection. `withTenant` switches role
+inside its transaction, which drops the permissive `bills_app` policy for the
+rest of that transaction and leaves only the tenant policies. Both the role
+switch and the setting are transaction-local, so they unwind on commit and
+cannot leak across a pooled connection. There is no `DATABASE_URL_TENANT`.
+
+**Migration 0006 was applied on 28 Jul 2026** and verified against live data:
+`bills_app` saw all 30 invoices, `bills_tenant` scoped to a customer saw only
+theirs, and with no `app.customer_id` set it saw zero.
+
+**Migrations are applied by hand.** `drizzle-kit migrate` only runs entries in
+`src/migrations/meta/_journal.json`, which lists `0000` alone. 0004, 0005 and
+0006 are not journaled, so `pnpm db:migrate` silently skips them.
 
 ## Auth
 
@@ -130,9 +143,6 @@ tokens, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
 
 Missing or unset:
 - `CLERK_SECRET_KEY` — not reaching production. Sign-in stays off until it does.
-- `DATABASE_URL_TENANT` — optional. Without it `tenantDb()` falls back to the
-  owner connection and warns once; repository scoping still applies but RLS
-  does not.
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, QStash trio,
   `BLOB_READ_WRITE_TOKEN` were flagged unset earlier.
 
@@ -148,7 +158,6 @@ pnpm --filter @bills/db db:migrate
 
 ## Open work
 
-- Apply migration 0006.
 - Set `CLERK_SECRET_KEY` in Vercel with Production ticked.
 - Product screens still unbuilt: bill summary, authorisation, live call,
   outcome. They need a `negotiations` table first; building them as static

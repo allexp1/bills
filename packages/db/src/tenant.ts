@@ -55,6 +55,13 @@ export async function withTenant<T>(
 ): Promise<T> {
   const id = assertCustomerId(customerId);
   return db.transaction(async (tx) => {
+    /* The app connects as bills_app, which holds a permissive ALL policy so the
+       pipeline and crons can work without a session. Switching role drops that
+       policy for the rest of this transaction and leaves only the tenant
+       policies, which key off app.customer_id. Both are transaction-local, so
+       they unwind on commit or rollback and cannot leak to the next request on
+       a pooled connection. */
+    await tx.execute(sql`set local role bills_tenant`);
     await tx.execute(sql`select set_config(${TENANT_SETTING}, ${id}, true)`);
     return fn(tx);
   });

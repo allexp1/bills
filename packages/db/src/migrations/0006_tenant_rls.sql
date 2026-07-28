@@ -1,6 +1,9 @@
 -- Multi-tenancy: web accounts on top of the existing customer rows, plus row
 -- level security as the second of two isolation layers.
 --
+-- NOT run by `drizzle-kit migrate`. meta/_journal.json lists only 0000, so
+-- 0004, 0005 and this file are applied by hand, same as its predecessors.
+--
 -- Identity note. Customers already exist, keyed by WhatsApp id. Clerk becomes
 -- the web login and is linked ONTO that same row rather than replacing it, so
 -- someone who has been sending bills over WhatsApp for months signs in and
@@ -17,29 +20,39 @@ create unique index if not exists customers_clerk_user_id_key
   on customers (clerk_user_id) where clerk_user_id is not null;
 
 -- ---------------------------------------------------------------------------
--- Row level security, applied to a dedicated role rather than to everyone
+-- Row level security, by role switch rather than a second connection
 -- ---------------------------------------------------------------------------
--- The first draft of this migration used FORCE, which applies policies to the
--- table owner too. That would have been correct in a codebase where every
--- query carries tenant context, and wrong in this one: ten server files run
--- the ingestion pipeline, the crons and the share page with no session at all,
--- because a bill arrives from WhatsApp long before anyone visits the website.
--- RLS filters silently instead of erroring, so forcing it would have stopped
--- the bot dead without a single line in the logs.
+-- Written against what the database actually looks like, which is not what the
+-- first draft of this file assumed.
 --
--- So the split is by role. The pipeline keeps connecting as the owner and is
--- unaffected. The account surface connects as bills_tenant, where policies do
--- apply and a missing app.customer_id matches nothing. RLS therefore guards
--- exactly the surface that needed guarding: the new one, where rows are
--- selected on behalf of whoever is signed in.
+-- The app connects as bills_app, not as the table owner. RLS is already
+-- enabled on all eight tables, and bills_app holds a permissive ALL policy, so
+-- the pipeline, the crons and the share page read and write freely today. That
+-- has to keep being true: a bill arrives from WhatsApp long before anyone
+-- visits the website, and those paths carry no session to scope by.
+--
+-- So account traffic does not get its own connection. withTenant runs
+-- SET LOCAL ROLE bills_tenant inside its transaction, which drops the
+-- permissive bills_app policy for the rest of that transaction and leaves only
+-- the tenant policies below. The role switch is local, so it unwinds on commit
+-- or rollback and cannot leak to the next request on a pooled connection.
+--
+-- The policies compare against current_setting('app.customer_id', true).
+-- missing_ok makes an unset value NULL, and NULL matches no row, so a query
+-- that reaches the database under this role without tenant context returns
+-- nothing rather than everything.
 
 do $$
 begin
   if not exists (select 1 from pg_roles where rolname = 'bills_tenant') then
+    -- NOLOGIN on purpose: reached only via SET LOCAL ROLE, never dialled.
     create role bills_tenant nologin;
   end if;
 end
 $$;
+
+grant bills_tenant to bills_app;
+grant usage on schema public to bills_tenant;
 
 -- Tables owning customer_id directly.
 do $$
@@ -95,5 +108,3 @@ create policy tenant_isolation on messages
     where c.id = messages.conversation_id
       and c.customer_id = current_setting('app.customer_id', true)
   ));
-
-grant usage on schema public to bills_tenant;
