@@ -3,6 +3,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { tenantDb } from "@bills/db";
 import { getPortfolio, type PortfolioEntry } from "@bills/db/repo/portfolio";
 import { resolveCustomer } from "../../server/auth/resolve-customer.js";
+import { clerkEnabled } from "../../lib/clerk-enabled.js";
 import { SiteFooter, SiteNav } from "../../components/site-nav.js";
 import { Money, NeuBadge, NeuButton, NeuCard } from "../../components/ui/neu.js";
 import { RetentionNotice } from "./retention-notice.js";
@@ -36,29 +37,41 @@ const statusLabel: Record<PortfolioEntry["status"], { text: string; tone: "savin
   requires_review: { text: "Requires review", tone: "warning" },
 };
 
+/* Shown to anyone without a session, and to everyone when Clerk is switched
+   off. Middleware no longer force-protects this route, because auth.protect()
+   answers a signed-out visitor with a 404, which is both unhelpful and untrue:
+   the page exists, they just need to sign in. */
+function SignedOutView({ reason }: { reason: "signed-out" | "unconfigured" }) {
+  return (
+    <div className="fx min-h-screen">
+      <SiteNav />
+      <main className="mx-auto max-w-2xl px-5 py-24 text-center">
+        <h1 className="text-3xl font-extrabold text-ink">
+          {reason === "signed-out" ? "Sign in to see your bills" : "Accounts are not switched on yet"}
+        </h1>
+        <p className="mt-4 text-base leading-relaxed text-muted">
+          {reason === "signed-out"
+            ? "If you have sent bills through WhatsApp before, signing in with that same number brings the whole history with it."
+            : "You can still upload a bill and get it decoded. Saved history arrives once accounts are enabled."}
+        </p>
+        <div className="mt-8 flex justify-center">
+          <NeuButton href={reason === "signed-out" ? "/sign-in" : "/upload"} size="lg">
+            {reason === "signed-out" ? "Sign in" : "Upload a bill"}
+          </NeuButton>
+        </div>
+      </main>
+      <SiteFooter />
+    </div>
+  );
+}
+
 export default async function PortfolioPage() {
+  /* auth() throws when Clerk is not configured, so it must not be reached. */
+  if (!clerkEnabled) return <SignedOutView reason="unconfigured" />;
+
   const { userId } = await auth();
 
-  if (!userId) {
-    return (
-      <div className="fx min-h-screen">
-        <SiteNav />
-        <main className="mx-auto max-w-2xl px-5 py-24 text-center">
-          <h1 className="text-3xl font-extrabold text-ink">Sign in to see your bills</h1>
-          <p className="mt-4 text-base leading-relaxed text-muted">
-            If you have sent bills through WhatsApp before, signing in with that same number brings
-            the whole history with it.
-          </p>
-          <div className="mt-8 flex justify-center">
-            <NeuButton href="/sign-in" size="lg">
-              Sign in
-            </NeuButton>
-          </div>
-        </main>
-        <SiteFooter />
-      </div>
-    );
-  }
+  if (!userId) return <SignedOutView reason="signed-out" />;
 
   const user = await currentUser();
   const verifiedPhone =

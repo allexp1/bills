@@ -1,35 +1,30 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
+import { clerkEnabled } from "./lib/clerk-enabled.js";
 
 /**
- * Only the account area is behind Clerk.
+ * Middleware attaches the Clerk session and nothing else.
  *
- * The webhooks, the cron endpoints and the share links must stay open: bills
- * arrive from WhatsApp and Telegram before anyone has ever seen the website,
- * and /s/[token] is the link a customer receives in a chat thread. Putting
- * auth in front of those would break the product's main path in order to
- * protect a page that does not exist yet.
+ * Nothing is force-protected here. auth.protect() rewrites to a 404 for a
+ * signed-out visitor on a normal page, which is exactly what /portfolio was
+ * doing: the page has a perfectly good signed-out view with a sign-in button,
+ * and nobody could ever reach it. A 404 also tells the person the page does not
+ * exist, which is a worse and less true thing than telling them to sign in.
+ *
+ * So protection lives where the content is. Each page reads the session and
+ * renders its own signed-out state.
+ *
+ * The webhooks, the cron endpoints and the share links must stay open in any
+ * case: bills arrive from WhatsApp and Telegram long before anyone has seen the
+ * website, and /s/[token] is the link a customer receives in a chat thread.
+ *
+ * The gate below reads the same clerkEnabled constant as the rest of the app.
+ * An earlier version had its own copy requiring both keys, disagreed with the
+ * app in production, and every route returned 500.
  */
-const isProtected = createRouteMatcher(["/portfolio(.*)", "/account(.*)"]);
-
-/* When Clerk is not configured, protected routes redirect home rather than
-   crashing the whole site. Preview builds and local runs without keys should
-   still serve the landing page. */
-const clerkConfigured = Boolean(
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY,
-);
-
-export default clerkConfigured
-  ? clerkMiddleware(async (auth, req) => {
-      if (isProtected(req)) await auth.protect();
-    })
-  : function middleware(req: NextRequest) {
-      if (isProtected(req)) {
-        const url = req.nextUrl.clone();
-        url.pathname = "/";
-        url.searchParams.set("auth", "unconfigured");
-        return NextResponse.redirect(url);
-      }
+export default clerkEnabled
+  ? clerkMiddleware()
+  : function middleware(_req: NextRequest) {
       return NextResponse.next();
     };
 
