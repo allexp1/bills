@@ -1,12 +1,20 @@
 /**
- * Whether Clerk is configured for this build.
+ * Whether Clerk is fully configured for this build.
  *
- * NEXT_PUBLIC_ variables are inlined at build time, so this resolves the same
- * on the server and in the browser. Everything Clerk-related is gated on it so
- * that a build without keys, which is every preview until the keys are set,
- * still serves the site instead of crashing on a missing provider.
+ * BOTH keys are required, and that is the whole point. Gating on the
+ * publishable key alone took the site down: the key was present, so
+ * ClerkProvider rendered and called auth(), the secret was absent, so Clerk
+ * could not initialise, and every route returned 500. Half-configured auth is
+ * not a degraded state, it is a broken one, so it has to read as "off".
+ *
+ * Only imported by server components and middleware, never by a client
+ * component. CLERK_SECRET_KEY does not exist in a browser bundle, so a client
+ * import would evaluate this false in the browser and true on the server, and
+ * hydration would tear.
  */
-export const clerkEnabled = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+export const clerkEnabled = Boolean(
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY,
+);
 
 /**
  * Clerk's components are styled to sit inside the neumorphic surfaces rather
