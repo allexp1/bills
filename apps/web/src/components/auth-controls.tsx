@@ -1,5 +1,5 @@
 import { Show, UserButton } from "@clerk/nextjs";
-import { clerkEnabled } from "../lib/clerk-enabled.js";
+import { clerkEnabled, clerkLinkVisible } from "../lib/clerk-enabled.js";
 
 /**
  * Sign in and account controls in the header.
@@ -17,10 +17,13 @@ import { clerkEnabled } from "../lib/clerk-enabled.js";
  * already signed in, which is the direction where failing quiet is harmless.
  */
 export function AuthControls() {
-  if (!clerkEnabled) return null;
+  if (!clerkLinkVisible) return null;
 
   return (
     <>
+      {/* Clerk components need the provider, which needs both keys. The link
+          below does not, so it renders either way. */}
+      {clerkEnabled ? (
       <Show when="signed-in">
         <a
           href="/portfolio"
@@ -43,6 +46,7 @@ export function AuthControls() {
           />
         </span>
       </Show>
+      ) : null}
 
       <a
         href="/sign-in"

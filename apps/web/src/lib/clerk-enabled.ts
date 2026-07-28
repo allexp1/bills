@@ -17,6 +17,23 @@ export const clerkEnabled = Boolean(
 );
 
 /**
+ * Whether a Clerk publishable key exists. Deliberately separate from
+ * clerkEnabled above.
+ *
+ * NEXT_PUBLIC_ values are inlined at build, so this resolves identically in
+ * every bundle: edge, node and browser. CLERK_SECRET_KEY does not. It is
+ * inlined into the edge bundle at build but read live in the node runtime, and
+ * on this deployment those two disagreed: middleware saw a secret, the server
+ * render did not, so the header rendered no sign-in control while Clerk was
+ * demonstrably running.
+ *
+ * Rather than diagnose that a third time, the navigation link now depends only
+ * on the value that cannot disagree with itself. Anything that would crash
+ * without a provider still uses clerkEnabled.
+ */
+export const clerkLinkVisible = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
+/**
  * Clerk's components are styled to sit inside the neumorphic surfaces rather
  * than on top of them: no hard borders, shadows for depth, brand purple for
  * anything actionable.
