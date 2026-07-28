@@ -18,6 +18,7 @@ const extraction: MergedExtraction = {
     pastDueAmount: null,
     currency: "EUR",
     country: "ES",
+    region: null,
     paymentMethod: null,
     printedNextSteps: ["Para cancelar servicios: área cliente > servicios"],
     printedDiscounts: [],

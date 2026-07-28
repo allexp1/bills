@@ -38,6 +38,14 @@ export const CommonFieldsSchema = z.object({
   pastDueAmount: z.string().nullable(),
   currency: z.string().nullable(), // ISO-4217
   country: z.string().nullable(), // ISO-3166 alpha-2
+  /**
+   * State/province/region of the SERVICE address — deliberately coarse. Some
+   * markets are not national (US electricity is a monopoly in most states and
+   * a competitive retail market in Texas and a dozen others), so the region
+   * decides which market rules apply. Never the street or the city: the
+   * subdivision is all the market logic needs, so it is all we ask for.
+   */
+  region: z.string().nullable(),
   paymentMethod: z.string().nullable(),
   /** Instructions literally printed on the bill ("tariff ends 31/03", "to cancel visit …"). */
   printedNextSteps: z.array(z.string()),

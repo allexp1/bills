@@ -8,6 +8,7 @@ import {
   DEFAULT_COUNTRIES,
   DEFAULT_UTILITIES,
   drainQueue,
+  REGION_SEEDS,
   seedMarkets,
 } from "../../../../server/playbook-queue.js";
 
@@ -21,6 +22,12 @@ export const maxDuration = 800;
  *   GET /api/admin/playbook?secret=…&action=list
  *   GET /api/admin/playbook?secret=…&action=get&country=IL&utility=water
  *   GET /api/admin/playbook?secret=…&action=research&country=IL&utility=water[&force=1]
+ *   GET /api/admin/playbook?secret=…&action=research&country=US&region=TX&utility=energy
+ *
+ * `region` is a bare ISO-3166-2 subdivision and defaults to "" (the country as
+ * a whole). It exists because some markets are not national — US electricity is
+ * a monopoly in most states and competitive in Texas — and a bill from a region
+ * with its own playbook uses it in preference to the country's.
  *
  * Pre-warming matters operationally: the first customer to send a bill in an
  * unresearched market otherwise waits for the whole research pass. Running
@@ -39,11 +46,22 @@ export async function GET(req: NextRequest) {
   const action = params.get("action") ?? "list";
   const country = params.get("country") ?? "";
   const utility = params.get("utility") ?? "";
+  /** Bare ISO-3166-2 subdivision ("TX"); "" or absent means country-level. */
+  const region = params.get("region") ?? "";
 
   if (action === "seed") {
     const countries = (params.get("countries") ?? DEFAULT_COUNTRIES.join(",")).split(",");
     const utilities = (params.get("utilities") ?? DEFAULT_UTILITIES.join(",")).split(",");
-    const total = countries.filter(Boolean).length * utilities.filter(Boolean).length;
+    const includeRegions = params.get("regions") !== "0";
+    // The confirm gate must count what will ACTUALLY be researched, region
+    // rows included — quoting a cost that leaves half the queue out is worse
+    // than not quoting one.
+    const cs = countries.map((c) => c.trim().toUpperCase()).filter(Boolean);
+    const us = utilities.map((u) => u.trim().toLowerCase()).filter(Boolean);
+    const regionRows = includeRegions
+      ? cs.reduce((n, c) => n + us.reduce((m, u) => m + (REGION_SEEDS[c]?.[u]?.length ?? 0), 0), 0)
+      : 0;
+    const total = cs.length * us.length + regionRows;
     // Every queued row becomes a real research call with real cost. Anything
     // beyond a handful needs saying out loud before it is spent.
     if (total > 20 && params.get("confirm") !== "1") {
@@ -57,7 +75,7 @@ export async function GET(req: NextRequest) {
         { status: 409 },
       );
     }
-    const seeded = await seedMarkets({ countries, utilities });
+    const seeded = await seedMarkets({ countries, utilities, includeRegions });
     return NextResponse.json({
       ...seeded,
       note: "Queued. The playbook-warm cron drains a few per run; use action=drain to push it along now.",
@@ -73,6 +91,7 @@ export async function GET(req: NextRequest) {
     const rows = await db()
       .select({
         country: schema.utilityPlaybooks.country,
+        region: schema.utilityPlaybooks.region,
         utility: schema.utilityPlaybooks.utility,
         version: schema.utilityPlaybooks.version,
         billsSeen: schema.utilityPlaybooks.billsSeen,
@@ -83,12 +102,17 @@ export async function GET(req: NextRequest) {
         lastError: schema.utilityPlaybooks.lastError,
       })
       .from(schema.utilityPlaybooks)
-      .orderBy(asc(schema.utilityPlaybooks.country), asc(schema.utilityPlaybooks.utility));
+      .orderBy(
+        asc(schema.utilityPlaybooks.country),
+        asc(schema.utilityPlaybooks.region),
+        asc(schema.utilityPlaybooks.utility),
+      );
     return NextResponse.json({
       count: rows.length,
       researched: rows.filter((r) => r.status === "ok").length,
       pending: rows.filter((r) => r.status === "pending").length,
       failed: rows.filter((r) => r.status === "failed").length,
+      regionRows: rows.filter((r) => r.region !== "").length,
       markets: rows,
     });
   }
@@ -98,7 +122,8 @@ export async function GET(req: NextRequest) {
   }
 
   if (action === "get") {
-    const record = await readPlaybook(country, utility);
+    // Exact key: "did WE research this region", not "what would a bill see".
+    const record = await readPlaybook(country, utility, region);
     if (!record) return NextResponse.json({ error: "not_researched" }, { status: 404 });
     return NextResponse.json({
       ...record,
@@ -113,6 +138,9 @@ export async function GET(req: NextRequest) {
     const { record, researched, error, detail } = await getOrResearchPlaybook({
       country,
       utility,
+      region,
+      // Spending here is deliberate: research the exact key asked for.
+      exact: true,
       language: params.get("language"),
       force: params.get("force") === "1",
     });
@@ -126,10 +154,13 @@ export async function GET(req: NextRequest) {
       researched,
       tookMs: Date.now() - started,
       country: record.country,
+      region: record.region,
       utility: record.utility,
       version: record.version,
       switchable: record.playbook.marketStructure.switchable,
       marketModel: record.playbook.marketStructure.model,
+      variesByRegion: record.playbook.marketStructure.variesByRegion,
+      regionsThatDiffer: record.playbook.marketStructure.regionsThatDiffer,
       levers: record.playbook.levers.map((l) => ({
         id: l.id,
         titleEn: l.titleEn,

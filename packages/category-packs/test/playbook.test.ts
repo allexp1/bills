@@ -7,6 +7,7 @@ import {
   mobilePack,
   type PlaybookRecord,
   type UtilityPlaybook,
+  UtilityPlaybookSchema,
 } from "../src/index.js";
 
 const basePlaybook: UtilityPlaybook = {
@@ -17,6 +18,9 @@ const basePlaybook: UtilityPlaybook = {
     regulator: "רשות המים",
     regulatorUrl: "https://www.gov.il/water",
     complaintRoute: "פנייה לתאגיד ואז לרשות המים",
+    variesByRegion: false,
+    regionLabel: null,
+    regionsThatDiffer: [],
   },
   billing: {
     unit: "m³",
@@ -70,8 +74,9 @@ const basePlaybook: UtilityPlaybook = {
   confidence: 0.8,
 };
 
-const record = (playbook: UtilityPlaybook): PlaybookRecord => ({
+const record = (playbook: UtilityPlaybook, region = ""): PlaybookRecord => ({
   country: "IL",
+  region,
   utility: "water",
   version: 1,
   schemaVersion: 1,
@@ -145,6 +150,69 @@ describe("playbookPack", () => {
   it("carries the researched glossary into the decode prompt", () => {
     const pack = playbookPack({ utility: "water", country: "IL", record: record(basePlaybook) });
     expect(pack.decodeHints.lineItemGlossary).toContain("כמות מוכרת");
+  });
+});
+
+/**
+ * The US-electricity case: one country-level `switchable` boolean is right for
+ * most states and wrong for Texas. Being wrong towards "monopoly" silently
+ * deletes the biggest saving those customers have, so an answer known to vary
+ * must be hedged, never asserted.
+ */
+describe("markets that split sub-nationally", () => {
+  const varies: UtilityPlaybook = {
+    ...basePlaybook,
+    marketStructure: {
+      ...basePlaybook.marketStructure,
+      switchable: false,
+      model: "regional_monopoly",
+      variesByRegion: true,
+      regionLabel: "state",
+      regionsThatDiffer: ["TX", "PA"],
+    },
+  };
+
+  it("hedges instead of asserting when reading the country row", () => {
+    const pack = playbookPack({ utility: "energy", country: "US", record: record(varies, "") });
+    const ids = pack.decodeHints.gotchaChecks.map((g) => g.id);
+    expect(ids).toContain("pb_switching_varies");
+    expect(ids).not.toContain("pb_no_switching");
+    const fragment = pack.decodeHints.gotchaChecks.find((g) => g.id === "pb_switching_varies")!.promptFragment;
+    expect(fragment).toMatch(/TX, PA/);
+    expect(fragment).toMatch(/Do NOT state either way as fact/);
+  });
+
+  it("keeps switching levers while the answer is unsettled", () => {
+    const pack = playbookPack({ utility: "energy", country: "US", record: record(varies, "") });
+    expect(pack.savingsLevers.map((l) => l.id)).toContain("pb_switch_supplier");
+  });
+
+  it("asserts again once the region has its own playbook", () => {
+    // A region row IS the answer for its region — nothing left to hedge about.
+    const settled: UtilityPlaybook = {
+      ...varies,
+      marketStructure: { ...varies.marketStructure, variesByRegion: false, regionsThatDiffer: [] },
+    };
+    const pack = playbookPack({ utility: "energy", country: "US", record: record(settled, "CA") });
+    const ids = pack.decodeHints.gotchaChecks.map((g) => g.id);
+    expect(ids).toContain("pb_no_switching");
+    expect(ids).not.toContain("pb_switching_varies");
+    expect(pack.savingsLevers.map((l) => l.id)).not.toContain("pb_switch_supplier");
+  });
+
+  it("hedges for the bespoke packs too", () => {
+    const enriched = withPlaybookHints(mobilePack, record(varies, ""));
+    const ids = enriched.decodeHints.gotchaChecks.map((g) => g.id);
+    expect(ids).toContain("pb_switching_varies");
+    expect(ids).not.toContain("pb_no_switching");
+  });
+
+  it("a playbook researched before regions existed still parses, as country-wide", () => {
+    const { variesByRegion, regionLabel, regionsThatDiffer, ...legacy } = basePlaybook.marketStructure;
+    const parsed = UtilityPlaybookSchema.parse({ ...basePlaybook, marketStructure: legacy });
+    expect(parsed.marketStructure.variesByRegion).toBe(false);
+    expect(parsed.marketStructure.regionsThatDiffer).toEqual([]);
+    expect(parsed.marketStructure.regionLabel).toBeNull();
   });
 });
 

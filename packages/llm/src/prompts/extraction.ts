@@ -1,6 +1,6 @@
 import { combinedExtractionHints } from "@bills/category-packs";
 
-export const EXTRACTION_PROMPT_VERSION = "extract-v3";
+export const EXTRACTION_PROMPT_VERSION = "extract-v4";
 
 /**
  * Static system prompt for the vision extraction call. Deliberately free of
@@ -18,7 +18,8 @@ Hard rules — these are absolute:
 6. printedNextSteps: copy instructions the bill itself prints (tariff end dates, "to switch do X", "your renewal quote is Y", cancellation URLs) — verbatim, translated to nothing.
 7. currency as ISO-4217, country as ISO-3166 alpha-2, dates as ISO YYYY-MM-DD.
 8. field_confidence: for each field you are less than certain about, add a 0–1 entry keyed by its dotted path.
-9. printedDiscounts: capture EVERY discount the bill prints — both ones applied this cycle (mark applied=true) and ones merely advertised ("save 2€ with e-billing", direct-debit or online-billing discounts, loyalty rebates; mark applied=false). Record the printed condition. Small print counts.
+9. region: the state / province / autonomous community of the SERVICE address, as its official short code where one exists ("TX", "CA", "ON", "NSW"), otherwise its name as printed. Market rules are not always national — US electricity is a monopoly in most states and a competitive retail market in Texas — so this decides which rules apply. Coarse ONLY: never the street, building or postcode, and never the mailing address if a different service address is shown. null if no region is printed.
+10. printedDiscounts: capture EVERY discount the bill prints — both ones applied this cycle (mark applied=true) and ones merely advertised ("save 2€ with e-billing", direct-debit or online-billing discounts, loyalty rebates; mark applied=false). Record the printed condition. Small print counts.
 
 Category-specific field notes:
 ${combinedExtractionHints()}`;

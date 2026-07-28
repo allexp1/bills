@@ -314,6 +314,20 @@ export const utilityPlaybooks = pgTable(
     id: id(),
     /** ISO-3166 alpha-2, uppercase. */
     country: text("country").notNull(),
+    /**
+     * ISO-3166-2 subdivision code without the country prefix ("TX", "CA"), or
+     * "" for the country-level playbook.
+     *
+     * Some markets are not national. US electricity is a regional monopoly in
+     * most states and a competitive retail market in Texas, Pennsylvania, Ohio
+     * and a dozen others — one country-level `switchable` boolean is wrong for
+     * whichever half it does not describe, and being wrong here suppresses the
+     * single biggest saving those customers have. A region row overrides the
+     * country row for bills from that region; everywhere else the country row
+     * is already correct and no region is researched, so this costs research
+     * only where the country-level answer actually fails.
+     */
+    region: text("region").notNull().default(""),
     /** Utility slug: water, waste, council_tax, insurance, mobile, energy… */
     utility: text("utility").notNull(),
     /** Bumped on every successful re-research. */
@@ -343,5 +357,5 @@ export const utilityPlaybooks = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex("utility_playbooks_key_idx").on(t.country, t.utility)],
+  (t) => [uniqueIndex("utility_playbooks_key_idx").on(t.country, t.region, t.utility)],
 );

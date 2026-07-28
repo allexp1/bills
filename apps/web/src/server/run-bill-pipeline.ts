@@ -133,6 +133,9 @@ export async function runBillPipeline(args: {
       progress("market");
       const lookup = await getOrResearchPlaybook({
         country: extraction.common.country,
+        // A hint, not a research target: a researched region row wins, a
+        // missing one falls back to the country rather than costing a pass.
+        region: extraction.common.region,
         utility: marketKey,
         language: extraction.common.billLanguage,
         providerName: extraction.common.providerName,
@@ -283,6 +286,7 @@ export async function runBillPipeline(args: {
     // promoted only above the k-anonymity threshold — see playbook-store.
     await recordBillForPlaybook({
       country: extraction.common.country,
+      region: extraction.common.region,
       utility: marketKey,
       providerName: extraction.common.providerName,
       lineItemLabels: extraction.common.lineItems.map((li) => li.label),

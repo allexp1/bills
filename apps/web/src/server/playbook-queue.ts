@@ -38,6 +38,26 @@ export const DEFAULT_UTILITIES = [
 /** Markets the product already has provider data for, plus the home market. */
 export const DEFAULT_COUNTRIES = ["IL", "ES", "GB", "DE", "PT", "FR", "US", "BR", "MX"] as const;
 
+/**
+ * Markets known to split sub-nationally, seeded ahead of the research that
+ * would discover them.
+ *
+ * US electricity is the case that matters: a regulated regional monopoly in
+ * most states, a competitive retail-choice market in these. One country-level
+ * `switchable` boolean is wrong for whichever side it does not describe, and
+ * being wrong towards "monopoly" silently deletes the biggest saving those
+ * customers have.
+ *
+ * These are a hint about WHERE TO LOOK, never the answer — each region is
+ * researched on its own terms and decides its own market structure. Country
+ * research adds to this list at runtime via `marketStructure.regionsThatDiffer`.
+ */
+export const REGION_SEEDS: Record<string, Record<string, string[]>> = {
+  US: {
+    energy: ["TX", "PA", "OH", "IL", "NY", "NJ", "MD", "MA", "CT", "ME", "NH", "RI", "DE", "MI", "DC"],
+  },
+};
+
 /** Warm the everyday, high-volume bills first. */
 const PRIORITY: Record<string, number> = {
   water: 10,
@@ -55,30 +75,46 @@ const PRIORITY: Record<string, number> = {
 const norm = (s: string): string =>
   s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 
+export interface Market {
+  country: string;
+  /** "" for the country-level playbook. */
+  region: string;
+  utility: string;
+}
+
 export interface SeedResult {
   requested: number;
   enqueued: number;
   alreadyPresent: number;
-  markets: Array<{ country: string; utility: string }>;
+  markets: Market[];
 }
 
-/**
- * Enqueue every (country × utility) combination that has no row yet. Existing
- * rows — researched or already queued — are left alone, so seeding is safe to
- * repeat and never discards work already paid for.
- */
-export async function seedMarkets(args: {
-  countries: string[];
-  utilities: string[];
-}): Promise<SeedResult> {
-  const countries = args.countries.map((c) => c.trim().toUpperCase()).filter(Boolean);
-  const utilities = args.utilities.map(norm).filter(Boolean);
+/** Bare ISO-3166-2 subdivision code, or "" if it is not one. */
+const normRegion = (s: string): string => {
+  const v = s.trim().toUpperCase().replace(/^[A-Z]{2}-/, "");
+  return /^[A-Z0-9]{1,3}$/.test(v) ? v : "";
+};
 
-  const wanted = countries.flatMap((country) => utilities.map((utility) => ({ country, utility })));
+/**
+ * Enqueue the markets that have no row yet. Existing rows — researched or
+ * already queued — are left alone, so seeding is safe to repeat and never
+ * discards work already paid for.
+ *
+ * Region rows drain behind every country row of the same utility: the country
+ * answer is the one that serves most bills, and a region row only ever refines
+ * an answer the fallback already provides.
+ */
+export async function enqueueMarkets(wanted: Market[]): Promise<SeedResult> {
   if (wanted.length === 0) return { requested: 0, enqueued: 0, alreadyPresent: 0, markets: [] };
+  const countries = [...new Set(wanted.map((w) => w.country))];
+  const utilities = [...new Set(wanted.map((w) => w.utility))];
 
   const existing = await db()
-    .select({ country: schema.utilityPlaybooks.country, utility: schema.utilityPlaybooks.utility })
+    .select({
+      country: schema.utilityPlaybooks.country,
+      region: schema.utilityPlaybooks.region,
+      utility: schema.utilityPlaybooks.utility,
+    })
     .from(schema.utilityPlaybooks)
     .where(
       and(
@@ -86,8 +122,9 @@ export async function seedMarkets(args: {
         inArray(schema.utilityPlaybooks.utility, utilities),
       ),
     );
-  const have = new Set(existing.map((e) => `${e.country}/${e.utility}`));
-  const fresh = wanted.filter((w) => !have.has(`${w.country}/${w.utility}`));
+  const key = (m: Market) => `${m.country}/${m.region}/${m.utility}`;
+  const have = new Set(existing.map(key));
+  const fresh = wanted.filter((w) => !have.has(key(w)));
 
   if (fresh.length > 0) {
     await db()
@@ -95,10 +132,11 @@ export async function seedMarkets(args: {
       .values(
         fresh.map((m) => ({
           country: m.country,
+          region: m.region,
           utility: m.utility,
           status: "pending",
           data: null,
-          priority: PRIORITY[m.utility] ?? 100,
+          priority: (PRIORITY[m.utility] ?? 100) + (m.region ? 50 : 0),
         })),
       )
       .onConflictDoNothing();
@@ -110,6 +148,34 @@ export async function seedMarkets(args: {
     alreadyPresent: wanted.length - fresh.length,
     markets: fresh,
   };
+}
+
+/**
+ * Enqueue every (country × utility) combination, plus the sub-national rows
+ * for any of them that `REGION_SEEDS` says do not have a single national
+ * answer.
+ */
+export async function seedMarkets(args: {
+  countries: string[];
+  utilities: string[];
+  /** Set false to queue country-level rows only. */
+  includeRegions?: boolean;
+}): Promise<SeedResult> {
+  const countries = args.countries.map((c) => c.trim().toUpperCase()).filter(Boolean);
+  const utilities = args.utilities.map(norm).filter(Boolean);
+
+  const wanted: Market[] = [];
+  for (const country of countries) {
+    for (const utility of utilities) {
+      wanted.push({ country, region: "", utility });
+      if (args.includeRegions === false) continue;
+      for (const raw of REGION_SEEDS[country]?.[utility] ?? []) {
+        const region = normRegion(raw);
+        if (region) wanted.push({ country, region, utility });
+      }
+    }
+  }
+  return enqueueMarkets(wanted);
 }
 
 /**
@@ -133,9 +199,18 @@ export interface DrainResult {
   researched: number;
   failed: number;
   remaining: number;
+  /** Region rows queued because a country pass reported the market splits. */
+  regionsDiscovered: Market[];
   /** Set when the run stopped early because the API itself was unavailable. */
   abortedBy?: string;
-  results: Array<{ country: string; utility: string; ok: boolean; switchable?: boolean; error?: string }>;
+  results: Array<{
+    country: string;
+    region: string;
+    utility: string;
+    ok: boolean;
+    switchable?: boolean;
+    error?: string;
+  }>;
 }
 
 /**
@@ -164,6 +239,7 @@ export async function drainQueue(args: { limit?: number; budgetMs?: number } = {
     .limit(limit);
 
   const results: DrainResult["results"] = [];
+  const regionsDiscovered: Market[] = [];
   let researched = 0;
   let failed = 0;
   let abortedBy: string | undefined;
@@ -176,7 +252,9 @@ export async function drainQueue(args: { limit?: number; budgetMs?: number } = {
     const itemStartedAt = Date.now();
     const { record, error, detail } = await getOrResearchPlaybook({
       country: row.country,
+      region: row.region,
       utility: row.utility,
+      exact: true,
       force: true,
     });
     slowestMs = Math.max(slowestMs, Date.now() - itemStartedAt);
@@ -185,10 +263,38 @@ export async function drainQueue(args: { limit?: number; budgetMs?: number } = {
       researched++;
       results.push({
         country: row.country,
+        region: row.region,
         utility: row.utility,
         ok: true,
         switchable: record.playbook.marketStructure.switchable,
       });
+
+      /**
+       * The queue extending itself: a country pass that found the market
+       * splits sub-nationally tells us exactly which subdivisions its own
+       * answer does not cover, and those become queued rows. This is how a
+       * market we never anticipated — not just US electricity — gets a
+       * correct answer without anyone hand-listing its regions.
+       *
+       * Bounded by the schema's 20-code cap and by the queue itself: they are
+       * enqueued at low priority, drained one per cron run like everything
+       * else, and never researched inline on a customer's request.
+       */
+      const ms = record.playbook.marketStructure;
+      if (row.region === "" && ms.variesByRegion && ms.regionsThatDiffer.length > 0) {
+        const seeded = await enqueueMarkets(
+          ms.regionsThatDiffer
+            .map((r) => normRegion(r))
+            .filter(Boolean)
+            .map((region) => ({ country: row.country, region, utility: row.utility })),
+        );
+        regionsDiscovered.push(...seeded.markets);
+        if (seeded.enqueued > 0) {
+          console.log(
+            `[playbook-queue] ${row.country}/${row.utility} varies by ${ms.regionLabel ?? "region"}; queued ${seeded.enqueued} region(s): ${seeded.markets.map((m) => m.region).join(", ")}`,
+          );
+        }
+      }
     } else {
       failed++;
       const outage = isGlobalOutage(detail);
@@ -202,7 +308,13 @@ export async function drainQueue(args: { limit?: number; budgetMs?: number } = {
           status: !outage && row.attempts + 1 >= 3 ? "failed" : "pending",
         })
         .where(eq(schema.utilityPlaybooks.id, row.id));
-      results.push({ country: row.country, utility: row.utility, ok: false, error: error ?? "unknown" });
+      results.push({
+        country: row.country,
+        region: row.region,
+        utility: row.utility,
+        ok: false,
+        error: error ?? "unknown",
+      });
       if (outage) {
         // Every remaining call would fail the same way; stop wasting the run.
         abortedBy = detail?.slice(0, 160) ?? error;
@@ -216,5 +328,13 @@ export async function drainQueue(args: { limit?: number; budgetMs?: number } = {
     .from(schema.utilityPlaybooks)
     .where(eq(schema.utilityPlaybooks.status, "pending"));
 
-  return { attempted: pending.length, researched, failed, remaining: count, results, ...(abortedBy ? { abortedBy } : {}) };
+  return {
+    attempted: pending.length,
+    researched,
+    failed,
+    remaining: count,
+    regionsDiscovered,
+    results,
+    ...(abortedBy ? { abortedBy } : {}),
+  };
 }

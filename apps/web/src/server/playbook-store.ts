@@ -39,11 +39,23 @@ export interface PlaybookLookup {
 
 const norm = (s: string): string => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 
+/**
+ * Canonical form of a subdivision: bare ISO-3166-2 code, uppercase, no country
+ * prefix. Bills print "TX", "US-TX" or "Texas"; only the first is a key, so
+ * anything else that is not already a short code becomes "" and falls back to
+ * the country playbook — a fallback is always safe, a wrong key is not.
+ */
+export function normalizeRegion(raw: string | null | undefined): string {
+  const s = (raw ?? "").trim().toUpperCase().replace(/^[A-Z]{2}-/, "");
+  return /^[A-Z0-9]{1,3}$/.test(s) ? s : "";
+}
+
 function toRecord(row: typeof schema.utilityPlaybooks.$inferSelect): PlaybookRecord | null {
   const parsed = UtilityPlaybookSchema.safeParse(row.data);
   if (!parsed.success) return null;
   return {
     country: row.country,
+    region: row.region,
     utility: row.utility,
     version: row.version,
     schemaVersion: row.schemaVersion,
@@ -54,18 +66,46 @@ function toRecord(row: typeof schema.utilityPlaybooks.$inferSelect): PlaybookRec
   };
 }
 
-export async function readPlaybook(country: string, utility: string): Promise<PlaybookRecord | null> {
+/** Read one exact (country, region, utility) key. "" region = country-level. */
+export async function readPlaybook(
+  country: string,
+  utility: string,
+  region = "",
+): Promise<PlaybookRecord | null> {
   const [row] = await db()
     .select()
     .from(schema.utilityPlaybooks)
     .where(
       and(
         eq(schema.utilityPlaybooks.country, country.toUpperCase()),
+        eq(schema.utilityPlaybooks.region, normalizeRegion(region)),
         eq(schema.utilityPlaybooks.utility, norm(utility)),
       ),
     )
     .limit(1);
   return row ? toRecord(row) : null;
+}
+
+/**
+ * The read a bill actually wants: the region's own playbook when one has been
+ * researched, otherwise the country's.
+ *
+ * Most regions never get their own row and never need one — the country answer
+ * is already correct for them. Research is spent only where the country-level
+ * answer is known to be wrong, and this fallback is what makes that affordable:
+ * fifty states, a handful of playbooks.
+ */
+export async function resolvePlaybook(
+  country: string,
+  utility: string,
+  region: string | null | undefined,
+): Promise<PlaybookRecord | null> {
+  const r = normalizeRegion(region);
+  if (r) {
+    const specific = await readPlaybook(country, utility, r);
+    if (specific) return specific;
+  }
+  return readPlaybook(country, utility, "");
 }
 
 /**
@@ -76,6 +116,18 @@ export async function readPlaybook(country: string, utility: string): Promise<Pl
 export async function getOrResearchPlaybook(args: {
   country: string;
   utility: string;
+  /**
+   * Subdivision code. What happens with it depends on `exact`:
+   *  - default: a read-with-fallback hint. A researched region row is
+   *    preferred, but a missing one is NOT researched on a customer's request
+   *    — we fall back to the country row and research that if needed. This is
+   *    the cost guard: a bill from any of fifty states must not be able to
+   *    trigger a fifty-state research bill.
+   *  - `exact: true`: this region IS the row to research. Used by the warming
+   *    queue and the admin route, where spending is deliberate.
+   */
+  region?: string | null;
+  exact?: boolean;
   language?: string | null;
   providerName?: string | null;
   /** Skip the research call and return only what is cached. */
@@ -84,9 +136,17 @@ export async function getOrResearchPlaybook(args: {
 }): Promise<PlaybookLookup> {
   const country = args.country.toUpperCase();
   const utility = norm(args.utility);
+  const region = args.exact ? normalizeRegion(args.region) : "";
   if (!country || !utility) return { record: null, researched: false };
 
-  const existing = await readPlaybook(country, utility);
+  const existing = args.exact
+    ? await readPlaybook(country, utility, region)
+    : await resolvePlaybook(country, utility, args.region);
+  // A region row satisfying a fallback read is already the best answer there
+  // is; never re-research the country row on its behalf.
+  if (existing && !args.exact && existing.region !== "") {
+    return { record: existing, researched: false };
+  }
   if (existing && !args.force) {
     const ageDays = (Date.now() - Date.parse(existing.researchedAt)) / 86_400_000;
     const fresh = ageDays < MAX_AGE_DAYS && existing.schemaVersion === PLAYBOOK_SCHEMA_VERSION;
@@ -97,6 +157,7 @@ export async function getOrResearchPlaybook(args: {
   const result = await researchUtilityPlaybook({
     country,
     utility,
+    region,
     language: args.language ?? null,
     providers: args.providerName ? [args.providerName] : [],
     observedTerms: existing ? establishedTerms(existing.observations) : [],
@@ -111,6 +172,7 @@ export async function getOrResearchPlaybook(args: {
     .insert(schema.utilityPlaybooks)
     .values({
       country,
+      region,
       utility,
       version,
       schemaVersion: PLAYBOOK_SCHEMA_VERSION,
@@ -124,7 +186,11 @@ export async function getOrResearchPlaybook(args: {
       researchedAt: new Date(),
     })
     .onConflictDoUpdate({
-      target: [schema.utilityPlaybooks.country, schema.utilityPlaybooks.utility],
+      target: [
+        schema.utilityPlaybooks.country,
+        schema.utilityPlaybooks.region,
+        schema.utilityPlaybooks.utility,
+      ],
       set: {
         version,
         schemaVersion: PLAYBOOK_SCHEMA_VERSION,
@@ -141,6 +207,7 @@ export async function getOrResearchPlaybook(args: {
   return {
     record: {
       country,
+      region,
       utility,
       version,
       schemaVersion: PLAYBOOK_SCHEMA_VERSION,
@@ -182,6 +249,7 @@ export function normalizeLabel(raw: string): string | null {
  */
 export async function recordBillForPlaybook(args: {
   country: string | null;
+  region?: string | null;
   utility: string;
   providerName: string | null;
   lineItemLabels: string[];
@@ -192,8 +260,11 @@ export async function recordBillForPlaybook(args: {
   if (!country || !utility) return;
 
   try {
-    const existing = await readPlaybook(country, utility);
+    // Learn into the row this bill was actually decoded with — the region's
+    // own playbook when it has one, the country's otherwise.
+    const existing = await resolvePlaybook(country, utility, args.region);
     if (!existing) return; // nothing to learn into yet
+    const region = existing.region;
 
     const fresh = args.lineItemLabels
       .map(normalizeLabel)
@@ -216,7 +287,11 @@ export async function recordBillForPlaybook(args: {
           : {}),
       })
       .where(
-        and(eq(schema.utilityPlaybooks.country, country), eq(schema.utilityPlaybooks.utility, utility)),
+        and(
+          eq(schema.utilityPlaybooks.country, country),
+          eq(schema.utilityPlaybooks.region, region),
+          eq(schema.utilityPlaybooks.utility, utility),
+        ),
       );
 
     if (REFRESH_AT_BILLS.includes(billsSeen)) {
@@ -224,6 +299,8 @@ export async function recordBillForPlaybook(args: {
       await getOrResearchPlaybook({
         country,
         utility,
+        region,
+        exact: true,
         language: args.language ?? null,
         providerName: args.providerName,
         force: true,

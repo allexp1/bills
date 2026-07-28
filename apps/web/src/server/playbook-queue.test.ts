@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isGlobalOutage } from "./playbook-queue.js";
+import { isGlobalOutage, REGION_SEEDS } from "./playbook-queue.js";
 
 describe("isGlobalOutage", () => {
   it("treats an exhausted credit balance as an outage, not a bad market", () => {
@@ -22,5 +22,24 @@ describe("isGlobalOutage", () => {
     expect(isGlobalOutage("invalid_playbook: levers.0.id: Invalid")).toBe(false);
     expect(isGlobalOutage("no JSON object in the reply")).toBe(false);
     expect(isGlobalOutage(undefined)).toBe(false);
+  });
+});
+
+describe("REGION_SEEDS", () => {
+  it("covers the US retail-choice electricity states", () => {
+    // The reason sub-national playbooks exist at all: a country-level
+    // "regional monopoly" answer is wrong for every one of these.
+    expect(REGION_SEEDS.US?.energy).toContain("TX");
+    expect(REGION_SEEDS.US?.energy).toContain("PA");
+    expect(REGION_SEEDS.US?.energy).toContain("OH");
+  });
+
+  it("holds bare uppercase subdivision codes, since they are database keys", () => {
+    for (const [, byUtility] of Object.entries(REGION_SEEDS)) {
+      for (const [, regions] of Object.entries(byUtility)) {
+        for (const r of regions) expect(r).toMatch(/^[A-Z0-9]{1,3}$/);
+        expect(new Set(regions).size).toBe(regions.length);
+      }
+    }
   });
 });

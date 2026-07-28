@@ -44,7 +44,10 @@ const SHAPE = `{
     "model": "competitive" | "regional_monopoly" | "national_monopoly" | "municipal" | "unknown",
     "regulator": string | null,
     "regulatorUrl": string | null,
-    "complaintRoute": string | null
+    "complaintRoute": string | null,
+    "variesByRegion": boolean,                 // is "switchable" a different answer in different parts of this country?
+    "regionLabel": string | null,              // what the subdivision is called: "state", "Bundesland", "comunidad autónoma"
+    "regionsThatDiffer": [string]              // up to 20 ISO-3166-2 codes WITHOUT the country prefix ("TX", "PA"), where the answer above does NOT hold
   },
   "billing": {
     "unit": string | null,                     // m³, kWh, GB…
@@ -78,7 +81,8 @@ Work like a professional data analyst, not a summariser:
 3. Every substantive claim must carry the URL you actually read it on. If you could not verify something, leave it out rather than filling the gap from memory.
 
 Answer these specifically:
-- CAN A CONSUMER CHANGE SUPPLIER for this utility in this country? This is the decisive question. Many utilities are regional or municipal monopolies. Be explicit and be right; say switchable=false unless you found evidence that consumers genuinely choose their supplier.
+- CAN A CONSUMER CHANGE SUPPLIER for this utility here? This is the decisive question. Many utilities are regional or municipal monopolies. Be explicit and be right; say switchable=false unless you found evidence that consumers genuinely choose their supplier.
+- IS THAT ANSWER THE SAME EVERYWHERE IN THE COUNTRY? Federations and devolved markets often split: US electricity is a regulated regional monopoly in most states but a competitive retail-choice market in Texas, Pennsylvania, Ohio and others; water is organised locally in many countries. If the answer differs by region, set variesByRegion=true, give the country's MAJORITY answer in switchable/model, name the subdivision type in regionLabel, and list the codes where the majority answer fails in regionsThatDiffer. Getting this wrong in either direction is expensive: a false "you cannot switch" deletes the customer's biggest saving, and a false "you can" sends them chasing something that does not exist. If you genuinely did not find evidence of regional variation, set variesByRegion=false — do not hedge for safety.
 - How is a bill of this kind actually built up? Fixed vs consumption charges, the unit used, whether tariffs are tiered, whether estimated readings are common.
 - What line items appear on a typical bill, what does each mean in plain words, and which are negotiable versus statutory pass-through?
 - What discounts, social tariffs, rebates or exemptions exist, who qualifies, and how does someone claim them? This is where unclaimed money sits.
@@ -99,6 +103,13 @@ ${SHAPE}`;
 export async function researchUtilityPlaybook(args: {
   country: string;
   utility: string;
+  /**
+   * ISO-3166-2 subdivision without the country prefix ("TX"), or "" for the
+   * country as a whole. A region pass answers for that region only, and its
+   * answer is definitive there — which is the entire point of researching it:
+   * the country-level answer was known to be wrong for this region.
+   */
+  region?: string;
   /** Language to research and write local-language fields in (BCP-47 base). */
   language?: string | null;
   /** Provider names already seen in this market, to ground the research. */
@@ -111,9 +122,13 @@ export async function researchUtilityPlaybook(args: {
   observedTerms?: string[];
 }): Promise<PlaybookResearchResult | PlaybookResearchFailure> {
   const { country, utility, language, providers = [], observedTerms = [] } = args;
+  const region = (args.region ?? "").trim().toUpperCase();
 
   const context = [
     `Country: ${country}`,
+    region
+      ? `Region: ${region} (ISO-3166-2 ${country}-${region}) — research THIS region specifically. It is on the list because the country-wide answer does not hold here, so answer for this region on its own terms: its own regulator, its own suppliers, its own tariffs and schemes. Set variesByRegion=false and regionsThatDiffer=[]; your answer IS the answer for this region.`
+      : `Region: the country as a whole`,
     `Utility: ${utility}`,
     language ? `Local language: ${language}` : null,
     providers.length > 0 ? `Providers seen in this market: ${providers.slice(0, 10).join(", ")}` : null,
@@ -173,7 +188,7 @@ export async function researchUtilityPlaybook(args: {
     }
 
     return {
-      playbook: sanitize(parsed.value),
+      playbook: sanitize(parsed.value, region),
       usage: usageFrom(usage),
       promptVersion: PLAYBOOK_PROMPT_VERSION,
     };
@@ -219,8 +234,27 @@ function parsePlaybook(text: string): ParseResult {
  * knowledge that many customers will be advised from. A playbook is read far
  * more often than it is written, so a bad one is expensive.
  */
-function sanitize(pb: UtilityPlaybook): UtilityPlaybook {
+function sanitize(pb: UtilityPlaybook, region = ""): UtilityPlaybook {
   const httpOnly = (u: string) => /^https?:\/\//i.test(u);
+  /**
+   * A region playbook is the definitive answer for its own region, so it
+   * cannot also claim the answer varies — that would leave every reader
+   * hedging forever with nowhere further to look. Country rows keep whatever
+   * the research found, normalised to bare subdivision codes.
+   */
+  const structure = region
+    ? { variesByRegion: false, regionLabel: pb.marketStructure.regionLabel, regionsThatDiffer: [] }
+    : {
+        variesByRegion: pb.marketStructure.variesByRegion,
+        regionLabel: pb.marketStructure.regionLabel,
+        regionsThatDiffer: [
+          ...new Set(
+            pb.marketStructure.regionsThatDiffer
+              .map((r) => r.trim().toUpperCase().replace(/^[A-Z]{2}-/, ""))
+              .filter((r) => /^[A-Z0-9]{1,3}$/.test(r)),
+          ),
+        ],
+      };
   return {
     ...pb,
     // Benchmarks and schemes drive real advice — unsourced ones are dropped.
@@ -234,6 +268,7 @@ function sanitize(pb: UtilityPlaybook): UtilityPlaybook {
     ),
     marketStructure: {
       ...pb.marketStructure,
+      ...structure,
       regulatorUrl:
         pb.marketStructure.regulatorUrl && httpOnly(pb.marketStructure.regulatorUrl)
           ? pb.marketStructure.regulatorUrl

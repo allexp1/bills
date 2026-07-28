@@ -32,6 +32,7 @@ describe("wire schema", () => {
         pastDueAmount: "",
         currency: "EUR",
         country: "ES",
+        region: "", // sentinel: no state/province printed
         paymentMethod: "",
         printedNextSteps: [],
         printedDiscounts: [],
@@ -98,7 +99,7 @@ describe("wire schema", () => {
       category_confidence: 0.9,
       common: {
         providerName: "X", accountNumber: "", customerRefName: "", billingPeriodStart: "", billingPeriodEnd: "",
-        issueDate: "", dueDate: "", totalAmount: "10,00", pastDueAmount: "", currency: "EUR", country: "ES",
+        issueDate: "", dueDate: "", totalAmount: "10,00", pastDueAmount: "", currency: "EUR", country: "ES", region: "",
         paymentMethod: "", printedNextSteps: [], printedDiscounts: [], lineItems: [], billLanguage: "es",
       },
       category_fields: { energy: parsed, broadband: null, mobile: null, utility: null },

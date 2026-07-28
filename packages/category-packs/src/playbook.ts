@@ -60,6 +60,28 @@ export const UtilityPlaybookSchema = z.object({
     regulatorUrl: z.string().nullable(),
     /** Where to escalate when the provider says no. */
     complaintRoute: z.string().nullable(),
+    /**
+     * Set on a COUNTRY-level playbook when `switchable` is not the same answer
+     * everywhere in the country — US electricity being the case that forced
+     * this. When it is true and we are reading the country row, the product
+     * must hedge instead of asserting; the definitive answer lives in the
+     * region row, if one has been researched.
+     *
+     * Defaulted rather than required so playbooks researched before this
+     * field existed still parse — absent means "no known regional variation",
+     * which is the safe reading and true of most markets.
+     */
+    variesByRegion: z.boolean().default(false),
+    /** What the subdivision is called locally: "state", "Bundesland", "comunidad autónoma". */
+    regionLabel: z.string().nullable().default(null),
+    /**
+     * The subdivisions where the country-level answer does NOT hold, as
+     * ISO-3166-2 codes without the country prefix ("TX", "PA"). This is the
+     * research telling us where to look next: these become queued region rows,
+     * and each one is researched on its own terms. Capped — a list this long
+     * is a seeding hint, not a licence to research a whole federation.
+     */
+    regionsThatDiffer: z.array(z.string()).max(20).default([]),
   }),
   billing: z.object({
     /** The unit consumption is measured in — m³, kWh, GB, litres. */
@@ -116,6 +138,8 @@ export interface PlaybookObservation {
 
 export interface PlaybookRecord {
   country: string;
+  /** ISO-3166-2 subdivision without the country prefix, or "" for country-level. */
+  region: string;
   utility: string;
   version: number;
   schemaVersion: number;
@@ -192,9 +216,20 @@ export function playbookPack(args: {
   const { utility, country, record } = args;
   const pb = record.playbook;
 
+  /**
+   * "Not switchable" is only a fact worth acting on when it is actually
+   * settled. If the country-level research said the answer varies by region
+   * and this is the country row (no region playbook researched yet), we do not
+   * know this customer's answer — so we hedge rather than assert. Suppressing
+   * switching on a Texan electricity bill because most US states are monopolies
+   * would delete that customer's single biggest saving.
+   */
+  const settledNoSwitching =
+    !pb.marketStructure.switchable && !(pb.marketStructure.variesByRegion && record.region === "");
+
   // A lever that requires switching is worse than useless in a monopoly: it
   // sends the customer to do something the market does not permit.
-  const usableLevers = pb.levers.filter((l) => !(l.requiresSwitching && !pb.marketStructure.switchable));
+  const usableLevers = pb.levers.filter((l) => !(l.requiresSwitching && settledNoSwitching));
 
   const levers: SavingsLever<UtilityFields>[] = usableLevers.map((lever) => ({
     id: `pb_${lever.id}`,
@@ -253,12 +288,19 @@ export function playbookPack(args: {
           : []),
         ...(pb.marketStructure.switchable
           ? []
-          : [
-              {
-                id: "pb_no_switching",
-                promptFragment: `IMPORTANT: ${utility} in ${country} is a ${pb.marketStructure.model.replace(/_/g, " ")} — the customer CANNOT change supplier. Never suggest switching, comparing suppliers, or threatening to leave. Savings must come from usage, tariff choice, allowances, rebates and billing corrections.${pb.marketStructure.complaintRoute ? ` Escalation route: ${pb.marketStructure.complaintRoute}.` : ""}`,
-              },
-            ]),
+          : settledNoSwitching
+            ? [
+                {
+                  id: "pb_no_switching",
+                  promptFragment: `IMPORTANT: ${utility} in ${country} is a ${pb.marketStructure.model.replace(/_/g, " ")} — the customer CANNOT change supplier. Never suggest switching, comparing suppliers, or threatening to leave. Savings must come from usage, tariff choice, allowances, rebates and billing corrections.${pb.marketStructure.complaintRoute ? ` Escalation route: ${pb.marketStructure.complaintRoute}.` : ""}`,
+                },
+              ]
+            : [
+                {
+                  id: "pb_switching_varies",
+                  promptFragment: `SWITCHING VARIES WITHIN ${country}: for ${utility}, most of the country is a ${pb.marketStructure.model.replace(/_/g, " ")}, but some ${pb.marketStructure.regionLabel ?? "regions"} have open supplier choice${pb.marketStructure.regionsThatDiffer.length > 0 ? ` (${pb.marketStructure.regionsThatDiffer.join(", ")})` : ""}. We do not know which applies to this customer. Do NOT state either way as fact. If you mention switching, frame it as "check whether your ${pb.marketStructure.regionLabel ?? "region"} allows choosing a supplier" and give the customer the way to find out. Lead with the savings that work regardless: usage, tariff choice, allowances, rebates and billing corrections.`,
+                },
+              ]),
         ...(pb.benchmarks.length > 0
           ? [
               {
@@ -273,7 +315,9 @@ export function playbookPack(args: {
     },
     savingsLevers: levers,
     // In a monopoly there is nothing to compare against — skip the search.
-    ...(pb.marketStructure.switchable ? {} : { comparisonSource: undefined }),
+    // When switching merely MIGHT be possible here, keep it: a wasted search
+    // costs cents, a suppressed one costs the customer their best saving.
+    ...(settledNoSwitching ? { comparisonSource: undefined } : {}),
   };
 }
 
@@ -311,10 +355,20 @@ export function withPlaybookHints<T>(pack: CategoryPack<T>, record: PlaybookReco
     });
   }
   if (!pb.marketStructure.switchable) {
-    extra.push({
-      id: "pb_no_switching",
-      promptFragment: `IMPORTANT: this service in ${record.country} is a ${pb.marketStructure.model.replace(/_/g, " ")} — the customer CANNOT change supplier. Never suggest switching or comparing suppliers.`,
-    });
+    // Same rule as playbookPack: only assert "you cannot switch" when the
+    // country-level answer actually holds country-wide.
+    const settled = !(pb.marketStructure.variesByRegion && record.region === "");
+    extra.push(
+      settled
+        ? {
+            id: "pb_no_switching",
+            promptFragment: `IMPORTANT: this service in ${record.country} is a ${pb.marketStructure.model.replace(/_/g, " ")} — the customer CANNOT change supplier. Never suggest switching or comparing suppliers.`,
+          }
+        : {
+            id: "pb_switching_varies",
+            promptFragment: `SWITCHING VARIES WITHIN ${record.country} for this service: most of the country is a ${pb.marketStructure.model.replace(/_/g, " ")}, but some ${pb.marketStructure.regionLabel ?? "regions"} have open supplier choice${pb.marketStructure.regionsThatDiffer.length > 0 ? ` (${pb.marketStructure.regionsThatDiffer.join(", ")})` : ""}. Do not state either way as fact for this customer; if you raise switching, tell them how to check whether their ${pb.marketStructure.regionLabel ?? "region"} allows it.`,
+          },
+    );
   }
   if (extra.length === 0) return pack;
 

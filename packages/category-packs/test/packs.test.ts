@@ -18,6 +18,7 @@ const common = (over: Partial<CommonFields> = {}): CommonFields => ({
   pastDueAmount: null,
   currency: "EUR",
   country: "ES",
+  region: null,
   paymentMethod: "direct debit",
   printedNextSteps: [],
   printedDiscounts: [],
