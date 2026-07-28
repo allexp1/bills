@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SiteFooter, SiteNav } from "../components/site-nav.js";
 import { CallShowcase } from "../components/landing/call-showcase.js";
 import { SavingsEstimator } from "../components/landing/savings-estimator.js";
-import { Money, NeuBadge, NeuButton, NeuCard, SectionHeading } from "../components/ui/neu.js";
+import { NeuBadge, NeuButton, NeuCard, SectionHeading } from "../components/ui/neu.js";
 
 export const metadata: Metadata = {
   title: "Fixplo.ai | The AI that calls your provider and negotiates your bill",
@@ -134,7 +134,7 @@ export default function LandingPage() {
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             <NeuCard>
               <p className="text-4xl font-extrabold text-ink">
-                <Money>£4.1bn</Money>
+                £4.1bn
               </p>
               <p className="mt-3 text-sm leading-relaxed text-muted">
                 Lost each year by customers who stay with their existing supplier, across mobile,
@@ -145,7 +145,7 @@ export default function LandingPage() {
 
             <NeuCard>
               <p className="text-4xl font-extrabold text-ink">
-                <Money>£877</Money>
+                £877
               </p>
               <p className="mt-3 text-sm leading-relaxed text-muted">
                 The average yearly loyalty penalty per household, which is roughly three percent of
@@ -156,7 +156,7 @@ export default function LandingPage() {
 
             <NeuCard>
               <p className="text-4xl font-extrabold text-savings">
-                <Money>£325</Money>
+                £325
               </p>
               <p className="mt-3 text-sm leading-relaxed text-muted">
                 The typical yearly saving on mobile and broadband for people who do renegotiate.
