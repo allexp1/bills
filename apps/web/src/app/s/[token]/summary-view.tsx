@@ -2,6 +2,7 @@
 import { buildProviderChatCta, formatDelta, t as tPipeline, type GuardedDecode } from "@bills/pipeline";
 import { formatDataSize, parseGb, type MergedExtraction } from "@bills/category-packs";
 import { formatMoney, parseAmount, withinTolerance, type SupportedLocale } from "@bills/shared";
+import { Logo } from "../../../components/logo.js";
 import { CopyButton } from "./copy-button.js";
 import {
   IconAlertCircle,
@@ -102,10 +103,12 @@ export function SummaryView({
     <div className="sum" dir={locale === "he" ? "rtl" : undefined}>
       <header className="sum-top">
         <div className="in">
-          <span className="sum-brand">
-            <IconChart size={18} />
-            SaveBills
-          </span>
+          {/* Was a chart glyph and the word "SaveBills". The product is
+              Fixplo.ai and this page is the one thing a customer is most
+              likely to share, so it carries the real mark. */}
+          <a href="/" className="sum-brand" aria-label="Fixplo.ai">
+            <Logo size={26} />
+          </a>
           <span className="sum-brand" style={{ fontWeight: 400, gap: 12 }}>
             <span className="sum-tagline">{s.tagline}</span>
             {extraction.common.providerName && (

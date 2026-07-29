@@ -782,30 +782,44 @@ a {
 
 html:has(.sum),
 body:has(.sum) {
-  background: #080e22;
+  background: var(--fx-bg-base);
 }
 
+/* The summary page on the Fixplo design system.
+   Figma frame neumorph-summary (33:656).
+
+   The whole palette is re-pointed at the --fx-* tokens rather than the old
+   navy set, and the neumorphic pass at the very bottom of this file turns the
+   bordered cards into shadowed ones. Doing it through the variables keeps the
+   772 lines of layout below untouched, and those lines carry a lot of hard-won
+   RTL, locale and number-formatting behaviour that is not worth re-deriving
+   for a repaint.
+
+   Because the tokens live on :root and flip with [data-theme], this page now
+   follows the theme toggle instead of forcing dark. It never had a light mode
+   before, so nothing regresses. */
 .sum {
-  --s-bg: #080e22;
-  --s-card: #121a3d;
-  --s-border: #24326b;
-  --s-text: #f3f4f6;
-  --s-muted: #9ca3af;
+  --s-bg: var(--fx-bg-base);
+  --s-card: var(--fx-bg-card);
+  --s-border: var(--fx-border);
+  --s-text: var(--fx-text-primary);
+  --s-muted: var(--fx-text-muted);
   --s-green: #10b981;
   --s-green-soft: rgba(16, 185, 129, 0.13);
-  --s-blue: #3b82f6;
-  --s-badge: #1a2554;
-  --s-cyan: #00d2ff;
-  --s-rose: #fb7185;
-  --s-amber: #fbbf24;
+  /* The design uses brand purple where this stylesheet says "blue": the
+     recommendation card, the dial progress, the current month's bar. */
+  --s-blue: #7c5cfc;
+  --s-badge: var(--fx-bg-card-hover);
+  --s-cyan: #9b83fd;
+  --s-rose: #ef4444;
+  --s-amber: #f59e0b;
   background: var(--s-bg);
   color: var(--s-text);
   min-height: 100vh;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color-scheme: dark;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 .sum a {
-  color: var(--s-green);
+  color: var(--s-blue);
 }
 
 /* ---------- chrome ---------- */
@@ -1542,4 +1556,139 @@ body:has(.sum) {
   margin: 9px 0 0;
   font-size: 0.8rem;
   color: var(--s-muted);
+}
+
+/* ==========================================================================
+   Summary page: neumorphic pass.
+
+   The block above this one is the original layout, and it is deliberately
+   still there: it holds the RTL handling, the responsive re-ordering and the
+   number formatting, none of which change when the paint changes.
+
+   What changes is the surface language. The Fixplo system builds depth out of
+   two shadows and no borders, so every "1px solid" here becomes a raised or
+   inset shadow. Kept as a pass at the end rather than edited inline because
+   the borders are scattered across thirty rules, and one block that says what
+   it is doing is easier to keep true than thirty small edits that look
+   arbitrary later.
+   ========================================================================== */
+
+/* Cards lift off the background. */
+.sum .s-card,
+.sum .s-stat,
+.sum .s-item,
+.sum .s-rec,
+.sum .terminal {
+  border: none;
+  box-shadow: var(--fx-raised);
+  background: var(--fx-bg-card);
+  border-radius: 20px;
+}
+
+.sum .s-hero {
+  border-radius: 24px;
+}
+
+/* Recessed surfaces: things sitting inside a card rather than on top of it. */
+.sum .s-banner,
+.sum .sum-provider,
+.sum .s-rows .r.total,
+.sum .s-item .ico {
+  border: none;
+  box-shadow: var(--fx-inset);
+}
+
+.sum .s-banner {
+  border-radius: 20px;
+  background: var(--s-green-soft);
+}
+
+/* Header and footer are part of the page, not cards on it, so they get a
+   hairline of brand tint rather than a shadow that would fight the cards. */
+.sum .sum-top {
+  border-bottom: 1px solid var(--fx-border);
+  background: var(--fx-bg-base);
+}
+.sum .sum-bottom {
+  border-top: 1px solid var(--fx-border);
+  background: var(--fx-bg-card);
+}
+
+/* Row separators inside a card: the faintest thing on the page, because the
+   card edge is already doing the separating. */
+.sum .s-items li,
+.sum .s-changes,
+.sum .s-hero .due,
+.sum .meter {
+  border-color: var(--fx-border);
+}
+.sum .s-rows .sep {
+  background: var(--fx-border);
+}
+
+/* Money is mono everywhere it is a figure to be read back or compared, and
+   sans everywhere it is prose. Matches the rest of the product. */
+.sum .s-hero .total,
+.sum .s-stat .v,
+.sum .s-items .amt,
+.sum .s-rows .r .v,
+.sum .s-rec .price,
+.sum .s-ring .pct,
+.sum .s-trend .seq {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  letter-spacing: -0.02em;
+}
+
+/* Buttons: raised at rest, pressed in on click, no borders either way. */
+.sum .s-cta,
+.sum .s-btn,
+.sum .s-rec .btn {
+  border: none;
+  box-shadow: var(--fx-raised-sm);
+  transition:
+    box-shadow 180ms ease,
+    filter 180ms ease;
+}
+.sum .s-cta:active,
+.sum .s-btn:active,
+.sum .s-rec .btn:active {
+  box-shadow: var(--fx-inset);
+}
+.sum .s-btn {
+  background: var(--fx-bg-card);
+}
+.sum .s-btn:hover {
+  background: var(--fx-bg-card-hover);
+}
+
+/* The recommendation card is the one place brand purple carries a whole
+   surface, so its shadow has to read against purple rather than the page. */
+.sum .s-rec {
+  background: var(--s-blue);
+  box-shadow: var(--fx-raised);
+}
+
+/* Bars and dial pick up the brand, with the current period emphasised. */
+.sum .s-bars i {
+  background: var(--s-blue);
+  opacity: 0.45;
+}
+.sum .s-bars span:last-child i {
+  opacity: 1;
+}
+
+/* The section label above each block, small and spaced, as in the frame. */
+.sum .sum-block > .s-label {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  color: var(--fx-text-dim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sum .s-cta,
+  .sum .s-btn,
+  .sum .s-rec .btn {
+    transition: none;
+  }
 }
