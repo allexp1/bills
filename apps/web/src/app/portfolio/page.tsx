@@ -156,7 +156,15 @@ export default async function PortfolioPage() {
           </NeuCard>
         </div>
 
-        <h2 className="mt-12 text-lg font-bold text-ink">Decoded utilities</h2>
+        {/* "Bills", not "utilities". The list is one row per bill now, so two
+            months from the same provider are two rows, and calling them
+            utilities would make the second look like a duplicate. */}
+        <h2 className="mt-12 text-lg font-bold text-ink">
+          Decoded bills
+          {portfolio.entries.length > 0 ? (
+            <span className="ml-2 text-sm font-medium text-dim">{portfolio.entries.length}</span>
+          ) : null}
+        </h2>
 
         {portfolio.entries.length === 0 ? (
           <NeuCard className="mt-5 py-12 text-center">

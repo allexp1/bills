@@ -111,15 +111,24 @@ export async function getPortfolio(db: Db, customerId: string): Promise<Portfoli
 
     const negotiating = new Set(openMissions.map((m) => m.invoiceId).filter(Boolean) as string[]);
 
-    /* One entry per provider, most recent bill wins, so re-uploading next
-       month's bill updates the row instead of adding a duplicate. */
-    const latestByProvider = new Map<string, (typeof invoices)[number]>();
-    for (const inv of invoices) {
-      const key = inv.providerName ?? inv.id;
-      if (!latestByProvider.has(key)) latestByProvider.set(key, inv);
-    }
+    /* Every bill is listed, newest first.
 
-    const entries: PortfolioEntry[] = [...latestByProvider.values()].map((inv) => ({
+       This used to collapse to one entry per provider, latest bill wins, on the
+       reasoning that next month's bill should update the row rather than add
+       one. It hid real bills. Two Pelephone bills for May and June are two
+       bills, and the second upload made the first vanish.
+
+       The bug also lied about itself: provider_name is written in a later,
+       best-effort step of the pipeline, so immediately after an upload the new
+       row still had a null provider and keyed on its own id. Both bills showed.
+       By the next visit the name had landed, the two collapsed, and one
+       disappeared with no action from anyone in between.
+
+       Genuine re-sends of the SAME bill are now caught upstream by the
+       duplicate check, which is where that belongs: it can tell the difference
+       between the same bill twice and two months of the same provider. This
+       function should not be guessing at it from provider names. */
+    const entries: PortfolioEntry[] = invoices.map((inv) => ({
       invoiceId: inv.id,
       providerName: inv.providerName,
       category: inv.category,
@@ -132,15 +141,25 @@ export async function getPortfolio(db: Db, customerId: string): Promise<Portfoli
       createdAt: inv.createdAt,
     }));
 
-    /* Monthly outflow sums one bill per provider. Summing every invoice would
-       double count a customer who has uploaded six months of the same bill. */
-    const monthlyOutflowMinor = entries.reduce((sum, e) => sum + (e.totalAmountMinor ?? 0), 0);
+    /* Outflow still counts one bill per provider, and that has to stay true
+       even though the list no longer does. "Monthly outflow" answers what you
+       pay each month; adding six months of the same phone bill would answer
+       nothing and read six times too high. */
+    const latestByProvider = new Map<string, (typeof invoices)[number]>();
+    for (const inv of invoices) {
+      const key = inv.providerName ?? inv.id;
+      if (!latestByProvider.has(key)) latestByProvider.set(key, inv);
+    }
+    const monthlyOutflowMinor = [...latestByProvider.values()].reduce(
+      (sum, inv) => sum + (inv.totalAmountMinor ?? 0),
+      0,
+    );
 
     return {
       monthlyOutflowMinor,
       currency: entries.find((e) => e.currency)?.currency ?? null,
       activeAudits: entries.filter((e) => e.status === "negotiating").length,
-      providerCount: entries.length,
+      providerCount: latestByProvider.size,
       entries,
     };
   });
