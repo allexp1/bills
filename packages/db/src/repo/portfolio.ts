@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import type { Db } from "../client.js";
 import { withTenant, type TenantDb } from "../tenant.js";
 import * as schema from "../schema.js";
@@ -110,13 +110,23 @@ export async function getPortfolio(db: Db, customerId: string): Promise<Portfoli
       .where(
         and(
           eq(schema.invoices.customerId, customerId),
-          /* A row the duplicate check stopped. It exists so we can tell that
-             someone sent the same bill twice, and it holds no decoded data of
-             its own: the provider and total are written after the point where
-             it was stopped, so including it would put an empty "Unnamed
-             provider" card at the top of the dashboard, above the real bill it
-             is a copy of. */
-          ne(schema.invoices.status, "duplicate"),
+          /* Only bills that actually have an analysis behind them.
+
+             An overload once produced six failed rows in two minutes, and the
+             dashboard listed every one as "Unnamed provider / Requires review",
+             counted them in "across 7 providers", and offered no way to act on
+             any of them. There was nothing to review: they died during
+             extraction, so they carry no provider, no total and no summary. A
+             card that cannot be opened and cannot be fixed is noise standing
+             between the person and their two real bills.
+
+             `duplicate` is excluded for the same reason and a different cause:
+             it is a real bill, but a second copy of one already listed.
+
+             Everything else in flight (extracting, decoding, guardrail) is
+             excluded by the same rule, which is right: those last seconds to
+             minutes and have no figures yet. */
+          eq(schema.invoices.status, "delivered"),
         ),
       )
       .orderBy(desc(schema.invoices.createdAt))

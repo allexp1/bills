@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconUpload } from "./icons.js";
 
 /** Pipeline stages streamed by /api/upload, with display copy and target %. */
@@ -18,11 +18,40 @@ const STAGES = [
 ] as const;
 type StageKey = (typeof STAGES)[number]["key"];
 
-/** Best supported match for the browser's language; explanations default to it. */
+/**
+ * Best supported match for the browser's language; explanations default to it.
+ *
+ * Only safe to call after mount. This is a client component but Next still
+ * renders it on the server, where navigator does not exist and this returns
+ * "en". A Hebrew browser then rendered "he" on hydration, the two trees
+ * disagreed, and React threw #418 and discarded the server HTML. Use the
+ * useBrowserLocale hook below in render; call this directly only in handlers,
+ * which never run during hydration.
+ */
 function browserLocale(): string {
   if (typeof navigator === "undefined") return "en";
   const lang = navigator.language.slice(0, 2).toLowerCase();
   return ["en", "es", "fr", "pt", "de", "he", "ru", "zh"].includes(lang) ? lang : "en";
+}
+
+/**
+ * The browser's language, but only from the second render onwards.
+ *
+ * The first client render has to produce exactly what the server produced, so
+ * it starts at "en" and the effect corrects it immediately afterwards. That is
+ * the whole fix for the hydration error: the value still ends up right, it just
+ * stops being right one render too early.
+ */
+function useBrowserLocale(): string {
+  const [locale, setLocale] = useState("en");
+  useEffect(() => setLocale(browserLocale()), []);
+  return locale;
+}
+
+/** "1:24" rather than "84s": a wait long enough to worry about reads in minutes. */
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
 /**
@@ -61,17 +90,61 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
   const [translate, setTranslate] = useState(false);
   const [stage, setStage] = useState<StageKey | null>(null);
   const [pct, setPct] = useState(0);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
   const trickle = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const formEl = useRef<HTMLFormElement>(null);
+  /* A ref rather than the billOf state, because goToStage runs in the same tick
+     as the line that discovers the bill changed, and state would still hold the
+     previous bill when the percentage is computed. */
+  const billRef = useRef<{ bill: number; of: number } | null>(null);
+  const uiLocale = useBrowserLocale();
+
+  /* A visible clock, because the honest answer to "is this stuck?" is usually
+     "no, a decode takes minutes". The bar alone cannot say that: it moves
+     whether or not anything is happening, so a long real wait and a hang look
+     identical. Elapsed seconds distinguish them. */
+  useEffect(() => {
+    if (startedAt === null) return;
+    setElapsed(Math.round((Date.now() - startedAt) / 1000));
+    const id = setInterval(() => setElapsed(Math.round((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+
+  /**
+   * Maps a within-bill percentage onto the whole upload.
+   *
+   * The STAGES percentages describe one bill. Used raw across several bills
+   * they lie in both directions: bill 1 of 2 climbed to 99% and sat there while
+   * bill 2 did all its work, so the bar said "almost done" with four minutes to
+   * go, and then jumped BACKWARDS to 32% when bill 2 reached extraction.
+   *
+   * Two bills means bill 1 owns 0 to 50 and bill 2 owns 50 to 100. The bar only
+   * moves forward, and 99% means what it says.
+   *
+   * Splitting and uploading happen once for the whole drop rather than per
+   * bill, so they are pinned to the very start instead of being scaled.
+   */
+  function scale(withinBill: number, key: StageKey): number {
+    const at = billRef.current;
+    if (!at || at.of <= 1) return withinBill;
+    if (key === "uploading" || key === "splitting") return withinBill / at.of;
+    return ((at.bill - 1) / at.of) * 100 + withinBill / at.of;
+  }
 
   function goToStage(key: StageKey) {
     const idx = STAGES.findIndex((s) => s.key === key);
     if (idx === -1) return;
     setStage(key);
-    setPct(STAGES[idx]!.pct);
+    const target = scale(STAGES[idx]!.pct, key);
+    /* Never let the bar go backwards. A stage arriving out of order, or a bill
+       boundary landing a frame early, is not worth showing someone as lost
+       progress. */
+    setPct((p) => Math.max(p, target));
     // Trickle toward the next stage's target so the bar never looks stuck.
-    const ceiling = idx + 1 < STAGES.length ? STAGES[idx + 1]!.pct - 2 : 99;
+    const rawCeiling = idx + 1 < STAGES.length ? STAGES[idx + 1]!.pct - 2 : 99;
+    const ceiling = Math.min(99, scale(rawCeiling, key));
     if (trickle.current) clearInterval(trickle.current);
     trickle.current = setInterval(() => {
       setPct((p) => (p < ceiling ? p + Math.max(0.2, (ceiling - p) * 0.02) : p));
@@ -106,7 +179,10 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
     setDuplicate(null);
     setMulti(null);
     setBillOf(null);
+    billRef.current = null;
     setOverloaded(null);
+    setStartedAt(Date.now());
+    setElapsed(0);
     goToStage("uploading");
     try {
       const body = new FormData(formEl.current!);
@@ -126,6 +202,11 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
       let buffer = "";
       let last: Record<string, unknown> | null = null;
       let sawStage = false;
+      /* Bills that finished before the stream ended, kept so a connection that
+         dies during a later bill cannot lose them. They were decoded and stored;
+         the only thing at risk was the person ever being shown them. */
+      const doneSoFar: MultiResult["bills"] = [];
+      let totalBills = 0;
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -135,9 +216,24 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
         for (const line of lines) {
           if (!line.trim()) continue;
           const obj = JSON.parse(line) as Record<string, unknown>;
+          if (obj.stage === "billDone") {
+            const done = obj.done as { index: number } & Record<string, unknown>;
+            if (done && typeof done.index === "number") {
+              const outcome = (done.outcome ?? {}) as Record<string, unknown>;
+              if (typeof outcome.summaryUrl === "string") {
+                doneSoFar.push({ index: done.index, ...outcome } as MultiResult["bills"][number]);
+              }
+            }
+            if (typeof obj.of === "number") totalBills = obj.of;
+            continue;
+          }
           if (typeof obj.stage === "string") {
             sawStage = true;
             if (typeof obj.of === "number" && obj.of > 1 && typeof obj.bill === "number") {
+              /* Ref first, state second. goToStage reads the ref in the same
+                 tick to work out which slice of the bar this bill owns, and
+                 state would still be on the previous bill. */
+              billRef.current = { bill: obj.bill, of: obj.of };
               setBillOf({ bill: obj.bill, of: obj.of });
             }
             goToStage(obj.stage as StageKey);
@@ -146,8 +242,31 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
       }
       if (buffer.trim()) last = JSON.parse(buffer) as Record<string, unknown>;
       if (!last && sawStage) {
-        // The stream died before the final result line — connection or
-        // server-side timeout, not a normal error response.
+        /* The stream died before the final line: a platform function limit, or
+           the connection itself. Not a normal error response.
+
+           If any bill had already finished, show those instead of an error. They
+           were decoded and saved before the socket went; reporting a failure
+           over the top of finished work is the wrong answer and sends the person
+           to re-upload something they already have. */
+        if (doneSoFar.length > 0) {
+          finish(
+            {
+              billCount: Math.max(totalBills, doneSoFar.length),
+              bills: doneSoFar,
+              failures: Array.from(
+                { length: Math.max(0, Math.max(totalBills, doneSoFar.length) - doneSoFar.length) },
+                (_, k) => ({
+                  index: doneSoFar.length + k,
+                  error: "not_attempted",
+                  detail: "the request ran out of time before this one; upload it on its own",
+                }),
+              ),
+            },
+            true,
+          );
+          return;
+        }
         finish({ error: "connection_dropped", detail: "the analysis stream was interrupted — wait a minute, then try again; if it repeats, tell us which stage it stopped at" }, false);
         return;
       }
@@ -212,7 +331,7 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
   /** "12 March 2026" in the reader's own language, from an ISO timestamp. */
   function formatWhen(iso: string): string {
     try {
-      return new Intl.DateTimeFormat(browserLocale(), { dateStyle: "long" }).format(new Date(iso));
+      return new Intl.DateTimeFormat(uiLocale, { dateStyle: "long" }).format(new Date(iso));
     } catch {
       return iso.slice(0, 10);
     }
@@ -285,7 +404,7 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
         <p style={{ margin: "0 0 12px 27px" }}>
           <label style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text-muted)", fontSize: "0.9rem" }}>
             Translate into
-            <select name="locale" defaultValue={browserLocale()}>
+            <select name="locale" defaultValue={uiLocale} key={uiLocale}>
               <option value="en">English</option>
               <option value="es">Español</option>
               <option value="fr">Français</option>
@@ -299,7 +418,7 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
         </p>
       ) : (
         // Explanations still need a language — follow the browser silently.
-        <input type="hidden" name="locale" value={browserLocale()} />
+        <input type="hidden" name="locale" value={uiLocale} />
       )}
 
       <p>
@@ -332,8 +451,21 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
               {billOf ? `Bill ${billOf.bill} of ${billOf.of}: ` : ""}
               {STAGES[stageIdx]?.label}…
             </span>
-            <span className="pct">{Math.round(Math.min(pct, 99))}%</span>
+            <span className="pct">
+              {formatElapsed(elapsed)} · {Math.round(Math.min(pct, 99))}%
+            </span>
           </div>
+          {/* Said once, up front, because the bar cannot say it. Reading every
+              line of a bill and searching the live market genuinely takes a few
+              minutes per bill, and without being told that, a long wait is
+              indistinguishable from a hang. */}
+          {elapsed > 25 && (
+            <p style={{ margin: "8px 0 0", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+              {billOf && billOf.of > 1
+                ? `Still working. Each bill is read in full and checked against the market, which takes a couple of minutes, so ${billOf.of} bills take a while. Leave this open.`
+                : "Still working. Reading every line and checking the market takes a couple of minutes. Leave this open."}
+            </p>
+          )}
           <ol className="stages">
             {STAGES.map((s, i) => (
               <li key={s.key} className={i < stageIdx ? "done" : i === stageIdx ? "active" : ""}>
@@ -393,9 +525,11 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
               <li key={`f${f.index}`} style={{ margin: "4px 0", color: "var(--text-muted)" }}>
                 {f.error === "overloaded"
                   ? `Bill ${f.index + 1} was not analysed: the service was busy. Upload it again in a minute.`
-                  : f.error === "unsupported_category"
-                    ? `Bill ${f.index + 1} could not be read: we support energy, internet and mobile bills so far`
-                    : `Bill ${f.index + 1} could not be read`}
+                  : f.error === "not_attempted"
+                    ? `Bill ${f.index + 1} was not analysed: there was not enough time left. Upload it on its own.`
+                    : f.error === "unsupported_category"
+                      ? `Bill ${f.index + 1} could not be read: we support energy, internet and mobile bills so far`
+                      : `Bill ${f.index + 1} could not be read`}
               </li>
             ))}
           </ol>

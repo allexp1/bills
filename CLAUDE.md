@@ -123,6 +123,35 @@ Owners now go through `/portfolio/open/[invoiceId]`, which proves ownership
 tenant-scoped and mints a fresh token. `/s/[token]` stays unauthenticated,
 because the link arrives in a chat thread.
 
+## The request cannot hold many bills
+
+A real bill takes two to four minutes: extraction, market research, a live web
+search, the decode. The route asks for `maxDuration = 800`, but the platform's
+own function ceiling is lower and is what applies, so a two-bill upload was
+killed mid-stream and the customer got `connection_dropped` after five minutes
+with bill 1's finished analysis stranded in the database.
+
+Three defences, all in `run-bill-upload.ts` and `upload-form.tsx`:
+
+- `BILL_BUDGET_MS` (240s), checked *before* starting each bill. What does not fit
+  is reported as `not_attempted`, which is true and actionable.
+- A `billDone` progress event per finished bill. The client keeps them, so a
+  stream that dies later still shows the bills that completed instead of an
+  error over the top of finished work.
+- Progress percentages are scaled into the current bill's slice. Unscaled, bill 1
+  of 2 climbed to 99% and sat there while bill 2 worked, then jumped *backwards*
+  to 32%. Plus a visible elapsed clock, because a moving bar cannot distinguish a
+  long real wait from a hang.
+
+**Only `delivered` invoices reach the portfolio.** Failed rows were listed as
+"Unnamed provider / Requires review" and counted in the provider total; they die
+during extraction so they have no provider, no total and no summary, and nothing
+about them can be reviewed or opened.
+
+**`browserLocale()` must not be called during render.** It returns "en" on the
+server and the real language on the client, so a Hebrew browser threw React #418
+and threw away the server HTML. Use `useBrowserLocale()`.
+
 ## Overload (429 / 529)
 
 A 529 `overloaded_error` killed a multi-bill upload and surfaced the raw JSON

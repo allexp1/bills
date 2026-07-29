@@ -35,9 +35,20 @@ export interface UploadBillResult {
 
 export interface UploadFailure {
   index: number;
-  error: "unsupported_category" | "pipeline_error" | "overloaded";
+  error: "unsupported_category" | "pipeline_error" | "overloaded" | "not_attempted";
   detail: string;
 }
+
+/**
+ * How long the loop may already have spent before it refuses to start another
+ * bill.
+ *
+ * The route allows 800 seconds, but the platform's own function ceiling is what
+ * actually applies and it is lower, which is how a two-bill upload got killed
+ * mid-stream. 240 seconds leaves room for one more full bill inside a 300
+ * second cap and still returns a real answer rather than a dead socket.
+ */
+const BILL_BUDGET_MS = 240_000;
 
 export interface UploadResult {
   bills: UploadBillResult[];
@@ -47,10 +58,12 @@ export interface UploadResult {
 }
 
 export interface UploadProgress {
-  stage: PipelineStage | "splitting";
+  stage: PipelineStage | "splitting" | "billDone";
   /** 1-based, for "bill 2 of 3". Absent while splitting, which is not per-bill. */
   bill?: number;
   of?: number;
+  /** Present only on "billDone": a finished bill, handed over as soon as it is ready. */
+  done?: UploadBillResult;
 }
 
 export async function runBillUpload(args: {
@@ -78,8 +91,32 @@ export async function runBillUpload(args: {
 
   const bills: UploadBillResult[] = [];
   const failures: UploadFailure[] = [];
+  const startedAt = Date.now();
 
   for (const [i, group] of groups.entries()) {
+    /* Wall-clock budget, checked before starting each bill rather than after.
+       A real bill takes two to four minutes: extraction, a market research
+       pass, a live web search and the decode. Two of them exceeded the
+       platform's function limit, the process was killed mid-stream, and the
+       customer got "connection_dropped" having already waited five minutes,
+       with bill 1's finished analysis stranded in the database.
+
+       So a bill is only started if there is plausibly time to finish it. What
+       does not fit is reported as not attempted, which is a true and actionable
+       answer, unlike a dropped connection. */
+    const spent = Date.now() - startedAt;
+    if (i > 0 && spent > BILL_BUDGET_MS) {
+      for (let rest = i; rest < groups.length; rest++) {
+        failures.push({
+          index: rest,
+          error: "not_attempted",
+          detail: "there was not enough time left in this request; upload this one on its own",
+        });
+      }
+      console.warn(`[upload] stopped after ${i}/${groups.length} bills, ${Math.round(spent / 1000)}s spent`);
+      break;
+    }
+
     const billPages = group.pageIndices.map((idx) => pages[idx]!);
     try {
       const outcome = await runBillPipeline({
@@ -91,6 +128,10 @@ export async function runBillUpload(args: {
         onProgress: (stage) => progress({ stage, bill: i + 1, of: groups.length }),
       });
       bills.push({ index: i, outcome });
+      /* Handed over the moment it is ready, not at the end. If the request dies
+         while a later bill is running, this one has already reached the person
+         instead of being lost with the connection. */
+      progress({ stage: "billDone", bill: i + 1, of: groups.length, done: { index: i, outcome } });
     } catch (err) {
       /* One bad bill in a drop of four must not lose the other three. Each
          failure is reported against its own position so the person can see
