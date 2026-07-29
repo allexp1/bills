@@ -209,10 +209,16 @@
 }
 
 /* The header sign-in link is plain HTML so it always renders, even if Clerk has
-   not resolved. Once Clerk mounts an account button next to it, the person is
-   signed in and the link is redundant, so it hides itself. Pure CSS, no second
-   dependency on auth state having loaded. */
-.fx nav:has([data-clerk-component="UserButton"]) [data-fx-signin],
-.fx nav:has(.cl-userButton-root) [data-fx-signin] {
+   not resolved. Once the signed-in controls appear next to it the link is
+   redundant, so it hides itself. Pure CSS, no second dependency on auth state
+   having loaded.
+
+   The hook is data-fx-account, which we put on our own wrapper inside
+   <Show when="signed-in">. It used to be .cl-userButton-root, one of Clerk's
+   internal class names, and Clerk warns about exactly that in the console:
+   those names change when they ship component updates, and the failure would
+   be silent, leaving "Sign in" sitting next to the avatar of whoever is
+   already signed in. Our own attribute cannot be renamed out from under us. */
+.fx nav:has([data-fx-account]) [data-fx-signin] {
   display: none;
 }

@@ -31,7 +31,10 @@ export function AuthControls() {
         >
           My bills
         </a>
-        <span className="inline-flex items-center">
+        {/* data-fx-account is what the stylesheet uses to hide the sign-in
+            link. It is our attribute rather than one of Clerk's class names,
+            which they warn about and do rename. */}
+        <span data-fx-account className="inline-flex items-center">
           <UserButton
             appearance={{
               elements: {
