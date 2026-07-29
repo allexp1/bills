@@ -12,6 +12,7 @@ function svc(over: Partial<DashboardService> = {}): DashboardService {
     latestMinor: 8985,
     previousMinor: 12900,
     averageMinor: 9360,
+    medianMinor: 8985,
     status: "audited",
     promoEndDate: null,
     contractEndDate: null,
@@ -138,5 +139,62 @@ describe("buildAlerts", () => {
       today,
     );
     expect(alerts.map((a) => a.kind)).toEqual(["jump", "contract_ending"]);
+  });
+});
+
+describe("the outlier rule", () => {
+  const today = new Date("2026-07-30T00:00:00Z");
+
+  it("finds a spike that is no longer the latest bill", () => {
+    /* The real case: a ₪415.17 February bill among four months near ₪90. The
+       jump rule compares only the two most recent bills, so it never sees this,
+       and it is the most notable figure in the data. */
+    const bills = [
+      bill("2026-07", 8985),
+      bill("2026-06", 12900),
+      bill("2026-05", 6194),
+      bill("2026-04", 6193),
+      bill("2026-03", 41517),
+    ];
+    const alerts = buildAlerts(
+      [svc({ bills, latestMinor: 8985, previousMinor: 12900, medianMinor: 8985, latestInvoiceId: "i-2026-07" })],
+      today,
+    );
+    const outlier = alerts.find((a) => a.kind === "outlier");
+    expect(outlier?.toMinor).toBe(41517);
+    expect(outlier?.invoiceId).toBe("i-2026-03");
+  });
+
+  it("measures against the median so the spike cannot raise its own bar", () => {
+    /* Against the mean of that history (₪151.58) the ₪415 bill is 2.7x. Against
+       the median (₪89.85) it is 4.6x. Using the mean would let a big enough
+       outlier hide itself. */
+    const bills = [bill("2026-07", 8985), bill("2026-06", 9000), bill("2026-03", 20000)];
+    const alerts = buildAlerts(
+      [svc({ bills, latestMinor: 8985, previousMinor: 9000, medianMinor: 9000, latestInvoiceId: "i-2026-07" })],
+      today,
+    );
+    expect(alerts.some((a) => a.kind === "outlier")).toBe(true);
+  });
+
+  it("says nothing about a history that is merely varied", () => {
+    const bills = [bill("2026-07", 8985), bill("2026-06", 9500), bill("2026-05", 11000)];
+    const alerts = buildAlerts(
+      [svc({ bills, latestMinor: 8985, previousMinor: 9500, medianMinor: 9500, latestInvoiceId: "i-2026-07" })],
+      today,
+    );
+    expect(alerts).toEqual([]);
+  });
+
+  it("needs three bills before calling anything unusual", () => {
+    /* With two bills the median IS one of them, so every pair where one is
+       double the other would read as an outlier. That is a jump, and the jump
+       rule already covers it with a direction. */
+    const bills = [bill("2026-07", 8985), bill("2026-03", 41517)];
+    const alerts = buildAlerts(
+      [svc({ bills, latestMinor: 8985, previousMinor: 41517, medianMinor: 25251, latestInvoiceId: "i-2026-07" })],
+      today,
+    );
+    expect(alerts.some((a) => a.kind === "outlier")).toBe(false);
   });
 });

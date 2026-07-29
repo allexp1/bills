@@ -45,6 +45,15 @@ export interface DashboardService {
   previousMinor: number | null;
   /** Mean of every bill with a total. Null when nothing has one. */
   averageMinor: number | null;
+  /**
+   * Median, and the one the UI shows as "typical".
+   *
+   * One ₪415 February bill among four around ₪90 drags the mean to ₪151, which
+   * describes none of the months actually on the bill. The median says ₪90 and
+   * is right. The mean is kept because it is what a total divided by a count
+   * means, and someone comparing against their own arithmetic will look for it.
+   */
+  medianMinor: number | null;
   status: ServiceStatus;
   promoEndDate: string | null;
   contractEndDate: string | null;
@@ -60,16 +69,18 @@ export interface DashboardService {
  * something in it teaches people to stop reading it.
  */
 export interface DashboardAlert {
-  kind: "jump" | "promo_ending" | "contract_ending";
+  kind: "jump" | "outlier" | "promo_ending" | "contract_ending";
   serviceKey: string;
   providerName: string | null;
   currency: string | null;
   invoiceId: string;
-  /** jump only. */
+  /** jump and outlier. */
   fromMinor?: number;
   toMinor?: number;
   deltaMinor?: number;
   deltaPct?: number;
+  /** outlier only: the billing period it belongs to, since it is not the latest. */
+  period?: string | null;
   /** promo_ending and contract_ending only. */
   date?: string;
 }
@@ -121,6 +132,16 @@ const JUMP_MIN_PCT = 25;
 const JUMP_MIN_MINOR = 1000;
 /** How far ahead a promo or contract end is worth surfacing. */
 const ENDING_SOON_DAYS = 60;
+/**
+ * A bill this many times the service's median is worth a second look wherever it
+ * sits in the history.
+ *
+ * The jump rule only ever compares the two most recent bills, which is right for
+ * "what changed this month" and useless for a ₪415 bill three months back that
+ * is 4.6x every other month. It stayed invisible on the first version of this
+ * dashboard while being the most notable figure in the data.
+ */
+const OUTLIER_MULTIPLE = 2;
 
 export async function getDashboard(db: Db, customerId: string, today = new Date()): Promise<Dashboard> {
   return withTenant(db, customerId, async (tx: TenantDb) => {
@@ -180,6 +201,7 @@ export async function getDashboard(db: Db, customerId: string, today = new Date(
           latestMinor: null,
           previousMinor: null,
           averageMinor: null,
+          medianMinor: null,
           status: "audited",
           promoEndDate: r.promoEndDate,
           contractEndDate: r.contractEndDate,
@@ -209,6 +231,7 @@ export async function getDashboard(db: Db, customerId: string, today = new Date(
         withTotals.length > 0
           ? Math.round(withTotals.reduce((s, b) => s + (b.totalMinor ?? 0), 0) / withTotals.length)
           : null;
+      svc.medianMinor = median(withTotals.map((b) => b.totalMinor!));
       svc.status = svc.bills.some((b) => negotiating.has(b.invoiceId))
         ? "negotiating"
         : svc.bills.length === 1
@@ -244,6 +267,14 @@ function cmpPeriod(a: DashboardBill, b: DashboardBill): number {
   if (a.periodEnd) return 1;
   if (b.periodEnd) return -1;
   return a.createdAt.getTime() - b.createdAt.getTime();
+}
+
+/** Middle value, mean of the two middles when there is an even count. */
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 === 1 ? s[mid]! : Math.round((s[mid - 1]! + s[mid]!) / 2);
 }
 
 function unique(values: Array<string | null>): string[] {
@@ -346,6 +377,37 @@ export function buildAlerts(services: DashboardService[], today: Date): Dashboar
         });
       }
     }
+    /* An outlier anywhere in the history, measured against the median so that
+       the outlier itself does not raise the bar it has to clear. Only the
+       largest one per service: a list of every unusual month is a report, and
+       this section is meant to be a short list of things to do. */
+    if (svc.medianMinor !== null && svc.medianMinor > 0 && svc.bills.length >= 3) {
+      const worst = svc.bills
+        .filter((b) => b.totalMinor !== null)
+        .sort((a, b) => (b.totalMinor ?? 0) - (a.totalMinor ?? 0))[0];
+      if (
+        worst &&
+        worst.totalMinor !== null &&
+        worst.invoiceId !== svc.latestInvoiceId &&
+        worst.totalMinor >= svc.medianMinor * OUTLIER_MULTIPLE &&
+        worst.totalMinor - svc.medianMinor >= JUMP_MIN_MINOR
+      ) {
+        alerts.push({
+          kind: "outlier",
+          serviceKey: svc.key,
+          providerName: svc.providerName,
+          currency: svc.currency,
+          invoiceId: worst.invoiceId,
+          fromMinor: svc.medianMinor,
+          toMinor: worst.totalMinor,
+          deltaMinor: worst.totalMinor - svc.medianMinor,
+          deltaPct: Math.round(((worst.totalMinor - svc.medianMinor) / svc.medianMinor) * 100),
+          period:
+            worst.periodStart && worst.periodEnd ? `${worst.periodStart} to ${worst.periodEnd}` : null,
+        });
+      }
+    }
+
     /* Already past counts as nothing to do: the promo is gone and the price it
        was holding down has already moved. */
     if (svc.promoEndDate && svc.promoEndDate >= todayIso && svc.promoEndDate <= horizon) {
@@ -371,6 +433,6 @@ export function buildAlerts(services: DashboardService[], today: Date): Dashboar
   }
 
   /* A price that already moved outranks a date in the future. */
-  const rank = { jump: 0, promo_ending: 1, contract_ending: 2 } as const;
+  const rank = { jump: 0, outlier: 1, promo_ending: 2, contract_ending: 3 } as const;
   return alerts.sort((a, b) => rank[a.kind] - rank[b.kind]);
 }

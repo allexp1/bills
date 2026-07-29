@@ -122,6 +122,15 @@ function alertText(a: DashboardAlert, locale: string): { title: string; body: st
       body: `${money(a.toMinor ?? null, a.currency, locale)} against ${money(a.fromMinor ?? null, a.currency, locale)} the month before. Worth knowing what caused it before it repeats.`,
     };
   }
+  if (a.kind === "outlier") {
+    return {
+      tone: "alert",
+      title: `${a.providerName ?? "One bill"} charged ${money(a.toMinor ?? null, a.currency, locale)} once, ${a.deltaPct}% above your usual`,
+      body: `Your typical month is ${money(a.fromMinor ?? null, a.currency, locale)}.${
+        a.period ? ` This one covers ${a.period}.` : ""
+      } Worth opening it and checking the charge is right.`,
+    };
+  }
   if (a.kind === "promo_ending") {
     return {
       tone: "warning",
@@ -166,7 +175,7 @@ function ServiceRow({
           <p className="mt-1 text-sm text-muted">
             {svc.bills.length === 1
               ? "One bill so far"
-              : `${svc.bills.length} bills · average ${money(svc.averageMinor, svc.currency, locale)}`}
+              : `${svc.bills.length} bills · typically ${money(svc.medianMinor, svc.currency, locale)}`}
             {svc.bills[0]?.periodStart && svc.bills[0]?.periodEnd
               ? ` · latest ${svc.bills[0].periodStart} to ${svc.bills[0].periodEnd}`
               : ""}
@@ -319,7 +328,13 @@ export function DashboardView({ data, locale = "en" }: { data: Dashboard; locale
               : "Column height is your whole outflow that month; the bands are which service. A month with no bill for a service stays empty."}
           </p>
           <NeuCard className="mt-4">
-            <SpendChart chart={chart} locale={locale} />
+            {/* Only meaningful for a single service: with several stacked,
+                one service's typical month is not a line across the total. */}
+            <SpendChart
+              chart={chart}
+              locale={locale}
+              typicalMinor={chart.series.length === 1 ? (services[0]?.medianMinor ?? null) : null}
+            />
           </NeuCard>
         </section>
       ))}

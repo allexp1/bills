@@ -61,7 +61,16 @@ function money(minor: number, currency: string, locale: string): string {
   }
 }
 
-export function SpendChart({ chart, locale = "en" }: { chart: DashboardChart; locale?: string }) {
+export function SpendChart({
+  chart,
+  locale = "en",
+  typicalMinor = null,
+}: {
+  chart: DashboardChart;
+  locale?: string;
+  /** Drawn as a reference line. Turns "415 is big" into "415 is big for you". */
+  typicalMinor?: number | null;
+}) {
   const uid = useId().replace(/:/g, "");
   const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null);
 
@@ -201,6 +210,32 @@ export function SpendChart({ chart, locale = "en" }: { chart: DashboardChart; lo
             </g>
           );
         })}
+        {/* The typical month, as a reference. Without it a reader has to hold
+            five columns in their head to know whether one is unusual. Anchored
+            left, because the right is where the last column's own label sits. */}
+        {typicalMinor !== null && typicalMinor > 0 && typicalMinor < ceiling && (
+          <g>
+            <line
+              x1={padL}
+              y1={padT + plotH - (typicalMinor / ceiling) * plotH}
+              x2={W - padR}
+              y2={padT + plotH - (typicalMinor / ceiling) * plotH}
+              stroke="var(--color-brand-soft)"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              opacity={0.85}
+            />
+            <text
+              x={padL + 6}
+              y={padT + plotH - (typicalMinor / ceiling) * plotH - 8}
+              fontSize={11}
+              fontWeight={700}
+              fill="var(--color-brand-soft)"
+            >
+              typically {money(typicalMinor, chart.currency, locale)}
+            </text>
+          </g>
+        )}
         <style>{seriesVars(uid)}</style>
       </svg>
 
