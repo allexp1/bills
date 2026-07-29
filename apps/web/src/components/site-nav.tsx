@@ -39,10 +39,19 @@ export function SiteNav() {
           {/* Hidden on phones on purpose. The hero has a full-width "Upload a
               bill" a thumb-length below it, so the header copy was the second
               of two identical calls to action and the one causing the overflow.
-              From sm up there is room and it earns its place. */}
-          <NeuButton href="/upload" size="sm" className="hidden whitespace-nowrap sm:inline-flex">
-            Upload a bill
-          </NeuButton>
+              From sm up there is room and it earns its place, because the hero
+              button has scrolled away by then.
+
+              The hiding lives on a wrapper rather than on the button, and it
+              has to. NeuButton hardcodes inline-flex in its own class list, and
+              Tailwind emits .inline-flex after .hidden, so passing "hidden" in
+              className loses on source order no matter which order the classes
+              are written in. A wrapper has no display utility to fight. */}
+          <span className="hidden sm:inline-flex">
+            <NeuButton href="/upload" size="sm" className="whitespace-nowrap">
+              Upload a bill
+            </NeuButton>
+          </span>
         </div>
       </nav>
     </header>

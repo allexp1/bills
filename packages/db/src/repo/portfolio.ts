@@ -73,6 +73,24 @@ export async function findOwnedInvoice(
   });
 }
 
+/**
+ * Which of two bills covers the more recent period.
+ *
+ * Compares billingPeriodEnd as an ISO date string, which sorts correctly as
+ * text and is how the column is stored. Falls back to upload time when a bill
+ * carries no period, because something has to break the tie and the alternative
+ * is an arbitrary winner.
+ */
+function isNewerBill(
+  a: { billingPeriodEnd: string | null; createdAt: Date },
+  b: { billingPeriodEnd: string | null; createdAt: Date },
+): boolean {
+  if (a.billingPeriodEnd && b.billingPeriodEnd) return a.billingPeriodEnd > b.billingPeriodEnd;
+  if (a.billingPeriodEnd) return true;
+  if (b.billingPeriodEnd) return false;
+  return a.createdAt > b.createdAt;
+}
+
 export async function getPortfolio(db: Db, customerId: string): Promise<PortfolioSummary> {
   return withTenant(db, customerId, async (tx: TenantDb) => {
     const invoices = await tx
@@ -144,11 +162,21 @@ export async function getPortfolio(db: Db, customerId: string): Promise<Portfoli
     /* Outflow still counts one bill per provider, and that has to stay true
        even though the list no longer does. "Monthly outflow" answers what you
        pay each month; adding six months of the same phone bill would answer
-       nothing and read six times too high. */
+       nothing and read six times too high.
+
+       "Latest" means the latest BILLING PERIOD, not the latest upload. Those
+       come apart the moment someone uploads an old bill after a new one, which
+       is exactly what happened here: June was decoded first, May second, and
+       the dashboard reported May's total as the current monthly outflow. Upload
+       order is a fact about the person's afternoon; the billing period is a
+       fact about the bill.
+
+       createdAt is the tiebreak, for bills with no period on them. */
     const latestByProvider = new Map<string, (typeof invoices)[number]>();
     for (const inv of invoices) {
       const key = inv.providerName ?? inv.id;
-      if (!latestByProvider.has(key)) latestByProvider.set(key, inv);
+      const held = latestByProvider.get(key);
+      if (!held || isNewerBill(inv, held)) latestByProvider.set(key, inv);
     }
     const monthlyOutflowMinor = [...latestByProvider.values()].reduce(
       (sum, inv) => sum + (inv.totalAmountMinor ?? 0),
