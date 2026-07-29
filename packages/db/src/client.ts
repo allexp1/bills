@@ -23,33 +23,27 @@ export function db(): Db {
   return singleton;
 }
 
-let tenantSingleton: Db | undefined;
-let warnedNoTenantUrl = false;
-
 /**
- * Connection for signed-in account traffic, using the bills_tenant role that
- * row level security policies apply to. Everything else, meaning the ingestion
- * pipeline, the crons and the share page, keeps using db() as the owner and is
- * deliberately exempt: those paths have no session, since a bill arrives from
- * WhatsApp long before anyone visits the website.
+ * Handle for signed-in account traffic. Deliberately the same connection as
+ * db(): isolation comes from the role switch, not from a second pool.
  *
- * With DATABASE_URL_TENANT unset this falls back to the owner connection. The
- * repository layer still scopes every query and its guard test still fails the
- * build if one does not, so the fallback loses the second layer rather than
- * all isolation. It warns once, because losing a layer quietly is how you end
- * up believing you have two.
+ * withTenant runs `set local role bills_tenant` inside its transaction, which
+ * drops the permissive bills_app policy for the rest of that transaction and
+ * leaves only the tenant policies keyed on app.customer_id. Both the role and
+ * the setting are transaction-local, so they unwind on commit and cannot leak
+ * across a pooled connection.
+ *
+ * An earlier design dialled a second connection from DATABASE_URL_TENANT and
+ * warned on every cold start that "row level security is not enforced" when
+ * that variable was unset. It was never going to be set, because bills_tenant
+ * was created NOLOGIN, and the claim was false in any case: every account read
+ * goes through withTenant and does switch role. The warning has been sitting in
+ * the production logs saying the opposite of the truth.
+ *
+ * Kept as its own function rather than collapsed into db() because the call
+ * sites document which traffic is account traffic, and the tenant guard test
+ * asserts on them.
  */
 export function tenantDb(): Db {
-  const url = process.env.DATABASE_URL_TENANT;
-  if (!url) {
-    if (!warnedNoTenantUrl) {
-      warnedNoTenantUrl = true;
-      console.warn(
-        "[db] DATABASE_URL_TENANT is not set: account queries fall back to the owner connection, so row level security is not enforced. Repository-level tenant scoping still applies.",
-      );
-    }
-    return db();
-  }
-  tenantSingleton ??= createDb(url);
-  return tenantSingleton;
+  return db();
 }

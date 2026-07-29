@@ -11,10 +11,15 @@ import type { Db } from "./client.js";
  * rows.
  *
  * Layer 2, migration 0006: row level security policies on every tenant table
- * compare their customer_id against current_setting('app.customer_id'). The
- * policies are FORCEd, so they apply to the table owner too. Without the
- * setting the policies match nothing, which means a query that escapes this
- * module returns zero rows rather than everybody's rows.
+ * compare their customer_id against current_setting('app.customer_id'). They
+ * are granted to the bills_tenant role only, not FORCEd. Forcing them would
+ * also apply them to the pipeline, the crons and the share page, which run
+ * with no session at all, and RLS filters silently rather than erroring, so
+ * that would have stopped the WhatsApp bot with nothing in the logs.
+ *
+ * Inside this module the role is switched, so the policies do apply and a
+ * missing app.customer_id matches nothing: a query that escapes the repository
+ * filter returns zero rows rather than everybody's.
  *
  * The failure modes are opposite in the two layers, which is the point. A bug
  * in the repository layer is caught by the database. A misconfigured database
