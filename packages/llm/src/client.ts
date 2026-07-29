@@ -3,6 +3,19 @@ import Anthropic from "@anthropic-ai/sdk";
 /** All calls use the same model; recorded on every extraction/decode row. */
 export const MODEL = "claude-opus-4-8";
 
+/**
+ * Model for deciding how many bills are in an upload.
+ *
+ * Sorting pages into bills is a much easier job than reading one, and its cost
+ * is dominated by the images going in rather than the few words coming out, so
+ * a smaller model is the right shape for it. Defaults to MODEL so nothing
+ * breaks on a deployment that has not set it: point SPLIT_MODEL at a cheaper
+ * model once you have confirmed the id you want, and it applies with no code
+ * change. If the id is wrong the splitter fails soft and the upload is analysed
+ * as a single bill, which is what it did before this existed.
+ */
+export const SPLIT_MODEL = process.env.SPLIT_MODEL || MODEL;
+
 let singleton: Anthropic | undefined;
 
 export function anthropic(): Anthropic {

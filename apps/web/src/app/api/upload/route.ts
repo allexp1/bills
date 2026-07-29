@@ -8,7 +8,8 @@ import { clerkEnabled } from "../../../lib/clerk-enabled.js";
 import { resolveCustomer } from "../../../server/auth/resolve-customer.js";
 import { env } from "../../../server/env.js";
 import { billQuotaExceeded } from "../../../server/rate-limit.js";
-import { PipelineError, runBillPipeline } from "../../../server/run-bill-pipeline.js";
+import { PipelineError } from "../../../server/run-bill-pipeline.js";
+import { runBillUpload } from "../../../server/run-bill-upload.js";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
@@ -97,12 +98,8 @@ export async function POST(req: NextRequest) {
             // client disconnected — keep processing; the result is still stored
           }
         };
-        const sendStage = (stage: string) => {
-          console.log(`[upload] stage=${stage} t=${Math.round((Date.now() - started) / 1000)}s`);
-          send({ stage });
-        };
         try {
-          const result = await runBillPipeline({
+          const result = await runBillUpload({
             customerId: customer.id,
             pages,
             locale,
@@ -111,9 +108,34 @@ export async function POST(req: NextRequest) {
                been told this is a bill they already have. Nothing sends it on
                a first attempt, so a normal upload can never skip the check. */
             force: form.get("force") === "on",
-            onProgress: sendStage,
+            onProgress: (p) => {
+              console.log(
+                `[upload] stage=${p.stage}${p.of && p.of > 1 ? ` bill=${p.bill}/${p.of}` : ""} t=${Math.round((Date.now() - started) / 1000)}s`,
+              );
+              send(p);
+            },
           });
-          send(result);
+
+          /* One bill keeps the old response shape exactly, so nothing that
+             already reads summaryUrl has to change: the client, the /try
+             harness and anything anyone has scripted against it. Several bills
+             get the list, which only the new client asks for. */
+          if (result.billCount === 1 && result.bills[0] && result.failures.length === 0) {
+            send(result.bills[0].outcome);
+          } else if (result.bills.length === 0) {
+            const first = result.failures[0];
+            send(
+              first?.error === "unsupported_category"
+                ? { error: "unsupported_category", detail: "We currently support energy, internet and mobile bills." }
+                : { error: "pipeline_error", detail: first?.detail ?? "the bill could not be read" },
+            );
+          } else {
+            send({
+              billCount: result.billCount,
+              bills: result.bills.map((b) => ({ index: b.index, ...b.outcome })),
+              failures: result.failures,
+            });
+          }
         } catch (err) {
           if (err instanceof PipelineError && err.code === "unsupported_category") {
             send({ error: "unsupported_category", detail: "We currently support energy, internet and mobile bills." });

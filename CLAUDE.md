@@ -123,6 +123,34 @@ Owners now go through `/portfolio/open/[invoiceId]`, which proves ownership
 tenant-scoped and mints a fresh token. `/s/[token]` stays unauthenticated,
 because the link arrives in a chat thread.
 
+## Several bills in one upload
+
+`packages/llm/src/split-bills.ts` sorts dropped pages into bills before the
+pipeline runs. Everything in an upload used to be treated as pages of one bill,
+so a phone bill and an electricity bill dropped together were read as one
+document: one provider, one total, line items from both, and no error.
+
+- A single page returns immediately with no model call, so the ordinary upload
+  costs nothing extra. The call only happens when there is something to decide.
+- `SPLIT_MODEL` (env, defaults to `MODEL`) picks the model. The job is easy and
+  the cost is in the images, so point it at something cheaper once you have
+  confirmed the id. A wrong id fails soft.
+- **Every failure path returns one group containing every page**, which is
+  exactly the old behaviour. The one invariant enforced in code is that each
+  page appears exactly once: a dropped page would delete part of a bill, a
+  repeated one would double a charge.
+- `apps/web/src/server/run-bill-upload.ts` runs `runBillPipeline` once per
+  group, sequentially. Sequential because the daily cap and per-customer quota
+  are checked per bill, so concurrency would let one upload slip past a limit.
+- `runBillPipeline` still means one bill. The WhatsApp path and the dev harness
+  are unchanged.
+- `/api/upload` keeps the old single-bill response shape when there is one bill,
+  so anything reading `summaryUrl` still works. Several bills return
+  `{billCount, bills[], failures[]}`.
+
+Chat (WhatsApp, Telegram) does not split yet: pages arrive over minutes into one
+pre-created invoice, so it needs the intake machine to create siblings.
+
 ## Duplicate bills
 
 People re-send bills constantly, usually because the first reply was missed.

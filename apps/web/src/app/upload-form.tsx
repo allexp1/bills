@@ -5,7 +5,10 @@ import { IconUpload } from "./icons.js";
 
 /** Pipeline stages streamed by /api/upload, with display copy and target %. */
 const STAGES = [
-  { key: "uploading", label: "Uploading your bill", pct: 8 },
+  { key: "uploading", label: "Uploading your bill", pct: 5 },
+  /* Only appears when more than one file was dropped, because that is the only
+     time there is anything to sort. */
+  { key: "splitting", label: "Checking whether this is one bill or several", pct: 12 },
   { key: "extracting", label: "Reading the bill with AI vision", pct: 32 },
   { key: "market", label: "Researching how this utility works in your country", pct: 46 },
   { key: "researching", label: "Scanning the market for better offers", pct: 62 },
@@ -35,10 +38,21 @@ interface DuplicateResult {
   billingPeriodEnd: string | null;
 }
 
+/** Sent when the drop turned out to hold more than one bill. */
+interface MultiResult {
+  billCount: number;
+  bills: Array<{ index: number; summaryUrl: string; duplicate?: true } & Partial<DuplicateResult>>;
+  failures: Array<{ index: number; error: string; detail: string }>;
+}
+
 /** Shared bill-upload form: public homepage (no secret) and /try (secret). */
 export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSecret?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [multi, setMulti] = useState<MultiResult | null>(null);
+  /* "bill 2 of 3", so a three-minute wait reads as progress rather than a
+     stalled bar. Null for the ordinary single-bill upload. */
+  const [billOf, setBillOf] = useState<{ bill: number; of: number } | null>(null);
   const [duplicate, setDuplicate] = useState<DuplicateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileNames, setFileNames] = useState<string[]>([]);
@@ -89,6 +103,8 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
     setError(null);
     setResult(null);
     setDuplicate(null);
+    setMulti(null);
+    setBillOf(null);
     goToStage("uploading");
     try {
       const body = new FormData(formEl.current!);
@@ -119,6 +135,9 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
           const obj = JSON.parse(line) as Record<string, unknown>;
           if (typeof obj.stage === "string") {
             sawStage = true;
+            if (typeof obj.of === "number" && obj.of > 1 && typeof obj.bill === "number") {
+              setBillOf({ bill: obj.bill, of: obj.of });
+            }
             goToStage(obj.stage as StageKey);
           } else last = obj;
         }
@@ -141,6 +160,20 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
 
   function finish(json: Record<string, unknown> | null, httpOk: boolean) {
     stopTrickle();
+    setBillOf(null);
+
+    /* Several bills in one drop. Checked before the summaryUrl branch because
+       this payload deliberately does not carry a top-level summaryUrl: there is
+       no single bill for it to point at, and inventing one would mean silently
+       picking a winner. */
+    if (httpOk && json && Array.isArray(json.bills)) {
+      setStage(null);
+      setPct(100);
+      setMulti(json as unknown as MultiResult);
+      setBusy(false);
+      return;
+    }
+
     if (!httpOk || !json || typeof json.summaryUrl !== "string") {
       setStage(null);
       setPct(0);
@@ -196,8 +229,13 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
         <span className="dz-icon">
           <IconUpload size={26} />
         </span>
-        <b>Drop your bill here, or tap to choose</b>
-        <div className="dz-hint">Photos or PDF · several pages fine · max 15 MB</div>
+        <b>Drop your bills here, or tap to choose</b>
+        {/* Was "several pages fine", which was true and read as a limit. Several
+            bills at once now genuinely works, and saying so is the only way
+            anyone finds out. */}
+        <div className="dz-hint">
+          Photos or PDF · several pages, or several bills at once · max 15 MB
+        </div>
         <input
           ref={fileInput}
           type="file"
@@ -277,7 +315,10 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
             <div className="fill" style={{ width: `${Math.min(pct, 99)}%` }} />
           </div>
           <div className="stage">
-            <span>{STAGES[stageIdx]?.label}…</span>
+            <span>
+              {billOf ? `Bill ${billOf.bill} of ${billOf.of}: ` : ""}
+              {STAGES[stageIdx]?.label}…
+            </span>
             <span className="pct">{Math.round(Math.min(pct, 99))}%</span>
           </div>
           <ol className="stages">
@@ -299,6 +340,41 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
       {result && (
         <div className="gotcha info" style={{ marginTop: 14 }}>
           ✅ Ready — <a href={result}>open your bill summary</a>
+        </div>
+      )}
+      {multi && (
+        <div className="gotcha info" style={{ marginTop: 14 }} aria-live="polite">
+          <b>
+            That was {multi.billCount} bills, so I decoded {multi.billCount === multi.bills.length ? "each" : "them"} separately.
+          </b>
+          <ol style={{ margin: "8px 0 0", paddingInlineStart: 20 }}>
+            {multi.bills.map((b) => (
+              <li key={b.index} style={{ margin: "4px 0" }}>
+                <a href={b.summaryUrl} target="_blank" rel="noreferrer">
+                  {b.providerName ?? `Bill ${b.index + 1}`}
+                  {b.billingPeriodStart && b.billingPeriodEnd
+                    ? `, ${b.billingPeriodStart} to ${b.billingPeriodEnd}`
+                    : ""}
+                </a>
+                {b.duplicate ? " — you already had this one" : ""}
+              </li>
+            ))}
+            {multi.failures.map((f) => (
+              <li key={`f${f.index}`} style={{ margin: "4px 0", color: "var(--text-muted)" }}>
+                Bill {f.index + 1} could not be read
+                {f.error === "unsupported_category"
+                  ? ": we support energy, internet and mobile bills so far"
+                  : ""}
+              </li>
+            ))}
+          </ol>
+          {/* Said plainly rather than assumed. The split is a judgement, and if
+              it got the grouping wrong the person is the only one who can tell,
+              so they are told what it decided. */}
+          <p style={{ margin: "10px 0 0", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+            If those were meant to be pages of one bill, upload them again one at a time and I will
+            read them as a single document.
+          </p>
         </div>
       )}
       {duplicate && (
