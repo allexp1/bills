@@ -97,7 +97,7 @@ export default async function PortfolioPage() {
           </NeuCard>
         ) : null}
 
-        <RetentionNotice consented={retentionConsentAt !== null} />
+        <RetentionNotice consented={retentionConsentAt !== null} billCount={dashboard.billCount} />
 
         <DashboardView data={dashboard} />
 
