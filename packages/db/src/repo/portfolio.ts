@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
 import type { Db } from "../client.js";
 import { withTenant, type TenantDb } from "../tenant.js";
 import * as schema from "../schema.js";
@@ -66,7 +66,18 @@ export async function getPortfolio(db: Db, customerId: string): Promise<Portfoli
         createdAt: schema.invoices.createdAt,
       })
       .from(schema.invoices)
-      .where(eq(schema.invoices.customerId, customerId))
+      .where(
+        and(
+          eq(schema.invoices.customerId, customerId),
+          /* A row the duplicate check stopped. It exists so we can tell that
+             someone sent the same bill twice, and it holds no decoded data of
+             its own: the provider and total are written after the point where
+             it was stopped, so including it would put an empty "Unnamed
+             provider" card at the top of the dashboard, above the real bill it
+             is a copy of. */
+          ne(schema.invoices.status, "duplicate"),
+        ),
+      )
       .orderBy(desc(schema.invoices.createdAt))
       .limit(200);
 

@@ -107,6 +107,10 @@ export async function POST(req: NextRequest) {
             pages,
             locale,
             translate: form.get("translate") === "on",
+            /* Set only by the "Analyse it again" action, after the person has
+               been told this is a bill they already have. Nothing sends it on
+               a first attempt, so a normal upload can never skip the check. */
+            force: form.get("force") === "on",
             onProgress: sendStage,
           });
           send(result);

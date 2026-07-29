@@ -12,7 +12,7 @@ import { resolveLocale, type SupportedLocale } from "@bills/shared";
 import { channelFor, keys } from "../wiring.js";
 import { mediaStore, purgeInvoiceMedia } from "../media-store.js";
 import { loadGuardedDecode } from "../decode-store.js";
-import { runBillPipeline } from "../run-bill-pipeline.js";
+import { isDuplicate, runBillPipeline } from "../run-bill-pipeline.js";
 
 /**
  * The Part-A pipeline: extraction → decode → guardrails → delivery.
@@ -73,6 +73,26 @@ export async function processBill(payload: { conversationId: string; invoiceId: 
       locale,
     });
 
+    /* Already decoded for this person. Answer with the bill they already have
+       rather than a second copy of it.
+
+       Re-sending is usually a sign the first reply was missed rather than a
+       mistake, so the link matters more than the explanation. The media is
+       purged in the finally-equivalent below either way: nothing was kept for
+       a run that did not happen. */
+    if (isDuplicate(result)) {
+      await channelFor(conversation.peerWaId).sendText(
+        conversation.peerWaId,
+        t(locale, "duplicateBill", {
+          when: formatWhen(result.originalDecodedAt, locale),
+          link: result.summaryUrl,
+        }),
+      );
+      await settleState(conversation.id, "processing_delivered");
+      await purgeInvoiceMedia(payload.invoiceId).catch(() => {});
+      return;
+    }
+
     // Deliver: summary + buttons.
     const loaded = await loadGuardedDecode(payload.invoiceId);
     if (loaded) {
@@ -94,6 +114,19 @@ export async function processBill(payload: { conversationId: string; invoiceId: 
     await settleState(conversation.id, "processing_failed");
     await channelFor(conversation.peerWaId).sendText(conversation.peerWaId, t(locale, "unreadable"));
     throw err; // invoice status already set by the pipeline; QStash retries transient failures
+  }
+}
+
+/**
+ * The date the original was decoded, in the reader's own language. A bare ISO
+ * string would be readable but foreign in every locale we support, and this is
+ * a sentence a person reads, not a log line.
+ */
+function formatWhen(iso: string, locale: SupportedLocale): string {
+  try {
+    return new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(new Date(iso));
+  } catch {
+    return iso.slice(0, 10);
   }
 }
 

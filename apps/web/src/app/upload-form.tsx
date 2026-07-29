@@ -22,10 +22,24 @@ function browserLocale(): string {
   return ["en", "es", "fr", "pt", "de", "he", "ru", "zh"].includes(lang) ? lang : "en";
 }
 
+/**
+ * What the server sends back when this bill has already been decoded for this
+ * person. Carries a link to the ORIGINAL rather than a new analysis.
+ */
+interface DuplicateResult {
+  summaryUrl: string;
+  matchedOn: "file" | "bill";
+  originalDecodedAt: string;
+  providerName: string | null;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
+}
+
 /** Shared bill-upload form: public homepage (no secret) and /try (secret). */
 export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSecret?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState<DuplicateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileNames, setFileNames] = useState<string[]>([]);
   const [drag, setDrag] = useState(false);
@@ -34,6 +48,7 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
   const [pct, setPct] = useState(0);
   const trickle = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const formEl = useRef<HTMLFormElement>(null);
 
   function goToStage(key: StageKey) {
     const idx = STAGES.findIndex((s) => s.key === key);
@@ -53,8 +68,17 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
     trickle.current = null;
   }
 
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
+  function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    void run(false);
+  }
+
+  /**
+   * `force` is threaded as an argument rather than a hidden field toggled by
+   * state, because the re-run is triggered from a button and React would not
+   * have rendered the field by the time the request went out.
+   */
+  async function run(force: boolean) {
     // The file input is display:none (styled dropzone), so native `required`
     // can't focus it to complain — validate here with a visible message.
     if (!fileInput.current?.files?.length) {
@@ -64,9 +88,12 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
     setBusy(true);
     setError(null);
     setResult(null);
+    setDuplicate(null);
     goToStage("uploading");
     try {
-      const res = await fetch(endpoint, { method: "POST", body: new FormData(e.currentTarget) });
+      const body = new FormData(formEl.current!);
+      if (force) body.set("force", "on");
+      const res = await fetch(endpoint, { method: "POST", body });
 
       if (!res.headers.get("content-type")?.includes("ndjson")) {
         // Plain JSON path: quota errors, and the /try harness.
@@ -119,6 +146,14 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
       setPct(0);
       const parts = [json?.error ?? "something went wrong", json?.detail, json?.hint].filter(Boolean);
       setError(parts.join(" — "));
+    } else if (json.duplicate === true) {
+      /* Deliberately no window.open here. A new tab is the right reflex when
+         something was just produced; for a bill they already had it reads as
+         the browser doing something they did not ask for, and it hides the
+         explanation of why no new analysis ran. */
+      setStage(null);
+      setPct(0);
+      setDuplicate(json as unknown as DuplicateResult);
     } else {
       setPct(100);
       setStage(null);
@@ -128,10 +163,19 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
     setBusy(false);
   }
 
+  /** "12 March 2026" in the reader's own language, from an ISO timestamp. */
+  function formatWhen(iso: string): string {
+    try {
+      return new Intl.DateTimeFormat(browserLocale(), { dateStyle: "long" }).format(new Date(iso));
+    } catch {
+      return iso.slice(0, 10);
+    }
+  }
+
   const stageIdx = stage ? STAGES.findIndex((s) => s.key === stage) : -1;
 
   return (
-    <form onSubmit={submit}>
+    <form ref={formEl} onSubmit={submit}>
       <label
         className={`dropzone${drag ? " drag" : ""}`}
         onDragOver={(e) => {
@@ -257,6 +301,48 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
           ✅ Ready — <a href={result}>open your bill summary</a>
         </div>
       )}
+      {duplicate && (
+        <div className="gotcha info" style={{ marginTop: 14 }} aria-live="polite">
+          <b>You have already decoded this bill.</b>
+          <p style={{ margin: "6px 0 0" }}>
+            {duplicate.matchedOn === "file"
+              ? "It is the same file you sent before"
+              : "It looks like the same bill, sent as a different photo or file"}
+            {describeBill(duplicate)}, analysed on {formatWhen(duplicate.originalDecodedAt)}. Nothing has
+            been charged and no second copy was created.
+          </p>
+          <p style={{ margin: "10px 0 0" }}>
+            <a href={duplicate.summaryUrl} target="_blank" rel="noreferrer">
+              Open the analysis you already have
+            </a>
+          </p>
+          <p style={{ margin: "10px 0 0" }}>
+            <button
+              type="button"
+              className="cta ghost"
+              disabled={busy}
+              onClick={() => void run(true)}
+              style={{ cursor: busy ? "wait" : "pointer" }}
+            >
+              Analyse it again anyway
+            </button>
+          </p>
+          <p style={{ margin: "8px 0 0", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+            Worth doing if this is genuinely a different bill, or if you want it run through the current
+            version of the analysis.
+          </p>
+        </div>
+      )}
     </form>
   );
+}
+
+/** " from Iberdrola, 1 Jan to 31 Jan" — only the parts the bill actually gave us. */
+function describeBill(d: DuplicateResult): string {
+  const parts: string[] = [];
+  if (d.providerName) parts.push(` from ${d.providerName}`);
+  if (d.billingPeriodStart && d.billingPeriodEnd) {
+    parts.push(`, covering ${d.billingPeriodStart} to ${d.billingPeriodEnd}`);
+  }
+  return parts.join("");
 }

@@ -105,10 +105,38 @@ export const invoices = pgTable(
     promoEndDate: text("promo_end_date"),
     contractEndDate: text("contract_end_date"),
     reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
+    /**
+     * Duplicate detection, two fingerprints because there are two ways to send
+     * the same bill twice.
+     *
+     * pagesHash is sha256 over the per-page sha256s in order: the same file,
+     * re-sent. Cheap enough to check before any model call, which is the whole
+     * point of having it as well as the semantic one.
+     *
+     * billFingerprint is sha256 over provider, account number, billing period
+     * and total: the same bill, photographed again. Only knowable after
+     * extraction, so it catches the duplicate one model call later.
+     *
+     * Neither is reversible and neither is an image. Storing them does not
+     * weaken the no-retention policy: what persists is still a hash, the same
+     * way wa_hash stands in for a phone number.
+     */
+    pagesHash: text("pages_hash"),
+    billFingerprint: text("bill_fingerprint"),
+    /** Set on the NEW invoice, pointing at the one it repeats. */
+    duplicateOfInvoiceId: text("duplicate_of_invoice_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("invoices_customer_status_idx").on(t.customerId, t.status)],
+  (t) => [
+    index("invoices_customer_status_idx").on(t.customerId, t.status),
+    /* Both lookups are always scoped by customer, and that is a rule rather
+       than an optimisation: two people whose landlord sends an identical bill
+       have not duplicated anything, and matching across customers would leak
+       the existence of someone else's bill. */
+    index("invoices_customer_pages_hash_idx").on(t.customerId, t.pagesHash),
+    index("invoices_customer_fingerprint_idx").on(t.customerId, t.billFingerprint),
+  ],
 );
 
 export const mediaObjects = pgTable("media_objects", {

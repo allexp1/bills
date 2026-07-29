@@ -10,8 +10,10 @@ import { db, encryptJson, schema } from "@bills/db";
 import { decodeBill, extractBill, gatherOffers, translateBillView, type BillPage, type PriorBillSummary } from "@bills/llm";
 import {
   applyGuardrails,
+  billFingerprint,
   buildBillHistory,
   computeGotchaFacts,
+  hashPages,
   mintSummaryToken,
   snapshotAmounts,
   snapshotFromExtraction,
@@ -31,6 +33,35 @@ export interface PipelineRunResult {
   guardrail: { claims: number; dropped: number; removedSentences: number };
   offersConsidered: number;
   tokens: { extraction: unknown; decode: unknown };
+}
+
+/**
+ * Returned instead of a run when this bill has already been decoded for this
+ * customer. summaryUrl is a freshly minted link to the ORIGINAL bill: the
+ * token they were given the first time is stored hashed and cannot be read
+ * back, and it may well have expired, so a new one is issued for the same
+ * invoice.
+ *
+ * `matchedOn` is surfaced because the two cases deserve different words. "The
+ * same file" is unambiguous; "the same bill" is a judgement, and telling
+ * someone which one it was lets them tell us we got it wrong.
+ */
+export interface DuplicateBillResult {
+  duplicate: true;
+  summaryUrl: string;
+  matchedOn: "file" | "bill";
+  originalInvoiceId: string;
+  /** ISO timestamp of the original upload, so the message can say when. */
+  originalDecodedAt: string;
+  providerName: string | null;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
+}
+
+export type PipelineOutcome = PipelineRunResult | DuplicateBillResult;
+
+export function isDuplicate(outcome: PipelineOutcome): outcome is DuplicateBillResult {
+  return (outcome as DuplicateBillResult).duplicate === true;
 }
 
 export class PipelineError extends Error {
@@ -56,7 +87,14 @@ export async function runBillPipeline(args: {
   onProgress?: (stage: PipelineStage) => void;
   /** Translate the bill's own text into the customer's language — OPT-IN: bill language is the default. */
   translate?: boolean;
-}): Promise<PipelineRunResult> {
+  /**
+   * Skip duplicate detection and decode it again regardless. Set when the
+   * person was told it was a repeat and asked for a fresh run anyway, which is
+   * a legitimate thing to want: the decoder improves, and a bill decoded in
+   * March is not necessarily decoded as well as one decoded today.
+   */
+  force?: boolean;
+}): Promise<PipelineOutcome> {
   const { customerId, locale, pages } = args;
   const progress = (stage: PipelineStage) => {
     try {
@@ -67,11 +105,20 @@ export async function runBillPipeline(args: {
   };
   const database = db();
 
+  /* Check one: the same file, re-sent. Before anything is inserted and before
+     a single model call, because this is the common case and it should cost
+     nothing. */
+  const pagesHash = hashPages(pages);
+  if (!args.force) {
+    const seen = await findDuplicate(customerId, schema.invoices.pagesHash, pagesHash, args.invoiceId);
+    if (seen) return await duplicateResult(seen, "file", args.invoiceId, pagesHash, null);
+  }
+
   let invoiceId = args.invoiceId;
   if (!invoiceId) {
     const [invoice] = await database
       .insert(schema.invoices)
-      .values({ customerId, status: "extracting", pageCount: pages.length })
+      .values({ customerId, status: "extracting", pageCount: pages.length, pagesHash })
       .returning({ id: schema.invoices.id });
     invoiceId = invoice!.id;
     // No-retention policy: uploaded pages are processed from memory only.
@@ -86,6 +133,30 @@ export async function runBillPipeline(args: {
 
     progress("extracting");
     const { extraction, usage, model, promptVersion } = await extractBill(pages);
+
+    /* Check two: the same bill, photographed again. Different bytes, so the
+       hash above saw nothing, but provider, account, period and total identify
+       the document itself.
+
+       Placed here rather than at the end because extraction is the cheap half.
+       What follows is market research, a web search pass and the decode, and
+       those are what a needless re-run actually costs.
+
+       A null fingerprint means the extraction did not recover enough to be
+       sure. It falls through and decodes normally: a wrong "you already sent
+       this" hides a real bill, which is much worse than paying for one repeat. */
+    const fingerprint = billFingerprint(extraction.common);
+    if (fingerprint) {
+      await database
+        .update(schema.invoices)
+        .set({ billFingerprint: fingerprint })
+        .where(eq(schema.invoices.id, invoiceId));
+    }
+    if (fingerprint && !args.force) {
+      const seen = await findDuplicate(customerId, schema.invoices.billFingerprint, fingerprint, invoiceId);
+      if (seen) return await duplicateResult(seen, "bill", invoiceId, pagesHash, fingerprint);
+    }
+
     const basePack = getPack(extraction.category);
 
     // Language policy: everything renders in the BILL's language by default —
@@ -345,6 +416,128 @@ export async function runBillPipeline(args: {
  * string summaries for the decode context. Best-effort — returns [] when
  * migration 0001 (provider_name) isn't applied or extractions are gone.
  */
+/**
+ * The earlier invoice this one repeats, or null.
+ *
+ * Scoped to the customer, always. Two tenants of the same building get
+ * byte-identical bills from the same landlord, and treating those as
+ * duplicates of each other would be both wrong and a disclosure that someone
+ * else's bill exists.
+ *
+ * Only `delivered` rows count. A half-finished or failed run is not a bill the
+ * person can be sent back to, so matching one would mean answering "you
+ * already have this" with a link to nothing.
+ */
+async function findDuplicate(
+  customerId: string,
+  column: typeof schema.invoices.pagesHash | typeof schema.invoices.billFingerprint,
+  value: string,
+  excludeInvoiceId: string | undefined,
+) {
+  try {
+    const rows = await db()
+      .select({
+        id: schema.invoices.id,
+        createdAt: schema.invoices.createdAt,
+        providerName: schema.invoices.providerName,
+        billingPeriodStart: schema.invoices.billingPeriodStart,
+        billingPeriodEnd: schema.invoices.billingPeriodEnd,
+      })
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.customerId, customerId),
+          eq(column, value),
+          eq(schema.invoices.status, "delivered"),
+          ...(excludeInvoiceId ? [ne(schema.invoices.id, excludeInvoiceId)] : []),
+        ),
+      )
+      .orderBy(desc(schema.invoices.createdAt))
+      .limit(1);
+    return rows[0] ?? null;
+  } catch (err) {
+    /* A duplicate check must never be the reason a bill fails to decode. On a
+       database where migration 0008 has not been applied these columns do not
+       exist; falling through means the old behaviour, which is a duplicate,
+       not a failure. */
+    console.warn(
+      "[pipeline] duplicate check skipped (migration 0008 applied?):",
+      err instanceof Error ? err.message.slice(0, 120) : "",
+    );
+    return null;
+  }
+}
+
+/**
+ * Closes out the current attempt and hands back a link to the original.
+ *
+ * The in-flight row is marked `duplicate` rather than deleted. It keeps the
+ * portfolio clean either way, and it leaves a record that someone tried to
+ * send this twice, which is the signal that tells us whether the first upload
+ * appeared to fail.
+ *
+ * The link is newly minted. The original token exists only as a hash and may
+ * have expired, and a re-upload is a reasonable moment to hand out a fresh one
+ * for a bill this person already owns.
+ */
+async function duplicateResult(
+  original: {
+    id: string;
+    createdAt: Date;
+    providerName: string | null;
+    billingPeriodStart: string | null;
+    billingPeriodEnd: string | null;
+  },
+  matchedOn: "file" | "bill",
+  attemptInvoiceId: string | undefined,
+  pagesHash: string,
+  fingerprint: string | null,
+): Promise<DuplicateBillResult> {
+  const database = db();
+
+  if (attemptInvoiceId) {
+    await database
+      .update(schema.invoices)
+      .set({
+        status: "duplicate",
+        duplicateOfInvoiceId: original.id,
+        pagesHash,
+        ...(fingerprint ? { billFingerprint: fingerprint } : {}),
+      })
+      .where(eq(schema.invoices.id, attemptInvoiceId))
+      .catch(() => {
+        /* Same reasoning as findDuplicate: never fail the request over
+           bookkeeping. The person still gets their link. */
+      });
+  }
+
+  const minted = mintSummaryToken(original.id, env.summaryJwtSecret);
+  const [tokenRow] = await database
+    .insert(schema.summaryTokens)
+    .values({ invoiceId: original.id, tokenHash: minted.tokenHash, expiresAt: minted.expiresAt })
+    .returning({ id: schema.summaryTokens.id });
+  if (tokenRow) {
+    /* Point the original at the newest token so the portfolio's own link keeps
+       working too, rather than staying on one that is closer to expiring. */
+    await database
+      .update(schema.invoices)
+      .set({ summaryTokenId: tokenRow.id })
+      .where(eq(schema.invoices.id, original.id))
+      .catch(() => {});
+  }
+
+  return {
+    duplicate: true,
+    summaryUrl: `${env.summaryBaseUrl}/s/${minted.token}`,
+    matchedOn,
+    originalInvoiceId: original.id,
+    originalDecodedAt: original.createdAt.toISOString(),
+    providerName: original.providerName,
+    billingPeriodStart: original.billingPeriodStart,
+    billingPeriodEnd: original.billingPeriodEnd,
+  };
+}
+
 async function loadPriorSnapshots(
   customerId: string,
   currentInvoiceId: string,

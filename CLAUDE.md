@@ -110,8 +110,41 @@ cannot leak across a pooled connection. There is no `DATABASE_URL_TENANT`.
 theirs, and with no `app.customer_id` set it saw zero.
 
 **Migrations are applied by hand.** `drizzle-kit migrate` only runs entries in
-`src/migrations/meta/_journal.json`, which lists `0000` alone. 0004, 0005 and
-0006 are not journaled, so `pnpm db:migrate` silently skips them.
+`src/migrations/meta/_journal.json`, which lists `0000` alone. 0004 onward are
+not journaled, so `pnpm db:migrate` silently skips them. **0008 was applied on
+29 Jul 2026** and both partial indexes verified present.
+
+## Duplicate bills
+
+People re-send bills constantly, usually because the first reply was missed.
+`packages/pipeline/src/duplicate.ts` catches it two ways, at two costs.
+
+- `hashPages` — sha256 over the per-page sha256s. The same file re-sent, caught
+  before any model call and before an invoice row exists.
+- `billFingerprint` — sha256 over provider, account number, billing period and
+  total. The same bill photographed again, caught one extraction later, before
+  the expensive market research and decode.
+
+Both lookups are scoped to the customer, always. Two tenants of one building get
+byte-identical bills, and matching across customers would be wrong and would
+disclose that someone else's bill exists.
+
+The fingerprint deliberately excludes issue and due dates (a re-issued bill
+changes them) and line items (OCR mangles them on a poor photo). It deliberately
+includes the total, so a **corrected** bill for the same period is treated as
+new. It returns null when extraction recovered too little, and null means decode
+normally: a wrong "you already sent this" hides a real bill, which is worse than
+paying for one repeat.
+
+Duplicate uploads get status `duplicate` plus `duplicate_of_invoice_id`, are
+excluded from `getPortfolio`, and are answered with a **freshly minted** token
+for the original (the first token is stored hashed and may have expired).
+`force: true` skips both checks, and only the "Analyse it again" action sets it.
+
+Bills delivered before 29 Jul 2026 have no hash and no fingerprint, so they
+cannot be matched. Backfilling the fingerprint from the plain invoice columns
+would produce a different hash from the live path, because the account number
+lives only in the encrypted extraction.
 
 ## Auth
 
