@@ -1,4 +1,4 @@
-export { MODEL, SPLIT_MODEL, anthropic, usageFrom, type LlmUsage } from "./client.js";
+export { MODEL, SPLIT_MODEL, anthropic, isOverloaded, usageFrom, type LlmUsage } from "./client.js";
 export { extractBill, type BillPage, type ExtractionResult } from "./extract.js";
 export { splitBills, type BillGroup, type SplitResult } from "./split-bills.js";
 export {

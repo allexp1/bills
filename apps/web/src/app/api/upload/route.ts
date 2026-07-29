@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { gte } from "drizzle-orm";
 import { db, schema } from "@bills/db";
 import { resolveLocale, waHash, type SupportedLocale } from "@bills/shared";
-import type { BillPage } from "@bills/llm";
+import { isOverloaded, type BillPage } from "@bills/llm";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { clerkEnabled } from "../../../lib/clerk-enabled.js";
 import { resolveCustomer } from "../../../server/auth/resolve-customer.js";
@@ -13,6 +13,14 @@ import { runBillUpload } from "../../../server/run-bill-upload.js";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
+
+/**
+ * Shown for a 429 or 529. Says whose problem it is, because the raw body did
+ * the opposite: a person reading "529 overloaded_error" next to their own
+ * upload reasonably concludes their bill broke something.
+ */
+const OVERLOADED_DETAIL =
+  "The analysis service is busy right now, not your bill. Nothing has been charged. Wait a minute and try again.";
 
 const MAX_FILES = 10;
 const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
@@ -127,7 +135,9 @@ export async function POST(req: NextRequest) {
             send(
               first?.error === "unsupported_category"
                 ? { error: "unsupported_category", detail: "We currently support energy, internet and mobile bills." }
-                : { error: "pipeline_error", detail: first?.detail ?? "the bill could not be read" },
+                : first?.error === "overloaded"
+                  ? { error: "overloaded", detail: OVERLOADED_DETAIL }
+                  : { error: "pipeline_error", detail: first?.detail ?? "the bill could not be read" },
             );
           } else {
             send({
@@ -139,6 +149,12 @@ export async function POST(req: NextRequest) {
         } catch (err) {
           if (err instanceof PipelineError && err.code === "unsupported_category") {
             send({ error: "unsupported_category", detail: "We currently support energy, internet and mobile bills." });
+          } else if ((err instanceof PipelineError && err.code === "overloaded") || isOverloaded(err)) {
+            /* Not a raw 529 body. That is what shipped, and "529 {"type":
+               "error"...}" tells the person nothing they can act on, while
+               implying their bill was the problem. */
+            console.warn("[upload] overloaded");
+            send({ error: "overloaded", detail: OVERLOADED_DETAIL });
           } else {
             console.error("[upload]", sanitize(err));
             send({ error: "pipeline_error", detail: sanitize(err) });

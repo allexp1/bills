@@ -35,7 +35,7 @@ export interface UploadBillResult {
 
 export interface UploadFailure {
   index: number;
-  error: "unsupported_category" | "pipeline_error";
+  error: "unsupported_category" | "pipeline_error" | "overloaded";
   detail: string;
 }
 
@@ -99,6 +99,21 @@ export async function runBillUpload(args: {
       const code = err instanceof PipelineError ? err.code : "pipeline_error";
       failures.push({ index: i, error: code, detail: sanitize(err) });
       console.error(`[upload] bill ${i + 1}/${groups.length} failed:`, sanitize(err));
+
+      /* Stop after an overload rather than marching through the rest. The
+         service is busy, so the remaining bills would almost certainly fail the
+         same way, and each attempt spends real tokens up to the point it dies.
+         Better to return what succeeded and let the person retry the rest. */
+      if (code === "overloaded") {
+        for (let rest = i + 1; rest < groups.length; rest++) {
+          failures.push({
+            index: rest,
+            error: "overloaded",
+            detail: "not attempted: the analysis service was busy",
+          });
+        }
+        break;
+      }
     }
   }
 

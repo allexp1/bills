@@ -54,6 +54,7 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
      stalled bar. Null for the ordinary single-bill upload. */
   const [billOf, setBillOf] = useState<{ bill: number; of: number } | null>(null);
   const [duplicate, setDuplicate] = useState<DuplicateResult | null>(null);
+  const [overloaded, setOverloaded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileNames, setFileNames] = useState<string[]>([]);
   const [drag, setDrag] = useState(false);
@@ -105,6 +106,7 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
     setDuplicate(null);
     setMulti(null);
     setBillOf(null);
+    setOverloaded(null);
     goToStage("uploading");
     try {
       const body = new FormData(formEl.current!);
@@ -170,6 +172,17 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
       setStage(null);
       setPct(100);
       setMulti(json as unknown as MultiResult);
+      setBusy(false);
+      return;
+    }
+
+    if (json?.error === "overloaded") {
+      /* Its own state rather than the error string, because this one has an
+         action attached: wait, then press the button again. The files are still
+         in the input, so a retry costs nothing but a click. */
+      setStage(null);
+      setPct(0);
+      setOverloaded(typeof json.detail === "string" ? json.detail : "The analysis service is busy.");
       setBusy(false);
       return;
     }
@@ -342,6 +355,23 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
           ✅ Ready — <a href={result}>open your bill summary</a>
         </div>
       )}
+      {overloaded && (
+        <div className="gotcha" style={{ marginTop: 14 }} aria-live="polite">
+          <b>Busy, not broken.</b>
+          <p style={{ margin: "6px 0 0" }}>{overloaded}</p>
+          <p style={{ margin: "10px 0 0" }}>
+            <button
+              type="button"
+              className="cta ghost"
+              disabled={busy}
+              onClick={() => void run(false)}
+              style={{ cursor: busy ? "wait" : "pointer" }}
+            >
+              Try again
+            </button>
+          </p>
+        </div>
+      )}
       {multi && (
         <div className="gotcha info" style={{ marginTop: 14 }} aria-live="polite">
           <b>
@@ -361,10 +391,11 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
             ))}
             {multi.failures.map((f) => (
               <li key={`f${f.index}`} style={{ margin: "4px 0", color: "var(--text-muted)" }}>
-                Bill {f.index + 1} could not be read
-                {f.error === "unsupported_category"
-                  ? ": we support energy, internet and mobile bills so far"
-                  : ""}
+                {f.error === "overloaded"
+                  ? `Bill ${f.index + 1} was not analysed: the service was busy. Upload it again in a minute.`
+                  : f.error === "unsupported_category"
+                    ? `Bill ${f.index + 1} could not be read: we support energy, internet and mobile bills so far`
+                    : `Bill ${f.index + 1} could not be read`}
               </li>
             ))}
           </ol>

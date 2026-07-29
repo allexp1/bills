@@ -123,6 +123,26 @@ Owners now go through `/portfolio/open/[invoiceId]`, which proves ownership
 tenant-scoped and mints a fresh token. `/s/[token]` stays unauthenticated,
 because the link arrives in a chat thread.
 
+## Overload (429 / 529)
+
+A 529 `overloaded_error` killed a multi-bill upload and surfaced the raw JSON
+body to the customer. Three things changed.
+
+The SDK client now uses `maxRetries: 5` (default is 2, which covered about a
+second and a half) and a 10 minute timeout, since a decode legitimately takes
+minutes. The SDK already backs off exponentially with jitter and honours
+`retry-after`; it just was not given enough attempts.
+
+`isOverloaded()` in `packages/llm/src/client.ts` matches on both the status and
+the stringified body, because by the time the pipeline sees the error only the
+message may have survived. It must stay false for real failures: telling someone
+to wait when their bill will never work is its own kind of wrong.
+
+Overload gets its own `PipelineError` code, its own `invoices.error_code`, and a
+retry button rather than an error string. A multi-bill upload stops at the first
+overload instead of burning tokens on bills that will fail the same way, and
+reports the rest as not attempted.
+
 ## Several bills in one upload
 
 `packages/llm/src/split-bills.ts` sorts dropped pages into bills before the

@@ -7,7 +7,7 @@ import {
   type PlaybookRecord,
 } from "@bills/category-packs";
 import { db, encryptJson, schema } from "@bills/db";
-import { decodeBill, extractBill, gatherOffers, translateBillView, type BillPage, type PriorBillSummary } from "@bills/llm";
+import { decodeBill, extractBill, gatherOffers, isOverloaded, translateBillView, type BillPage, type PriorBillSummary } from "@bills/llm";
 import {
   applyGuardrails,
   billFingerprint,
@@ -66,7 +66,7 @@ export function isDuplicate(outcome: PipelineOutcome): outcome is DuplicateBillR
 
 export class PipelineError extends Error {
   constructor(
-    readonly code: "unsupported_category" | "pipeline_error",
+    readonly code: "unsupported_category" | "pipeline_error" | "overloaded",
     detail?: string,
   ) {
     super(detail ?? code);
@@ -404,8 +404,16 @@ export async function runBillPipeline(args: {
       tokens: { extraction: usage, decode: decodeResult.usage },
     };
   } catch (err) {
-    const code = err instanceof PipelineError ? err.code : "pipeline_error";
+    /* An overload is the service being busy, not this bill being unreadable.
+       Recorded under its own code so a retry that then succeeds does not leave
+       a row claiming the bill failed, and so the caller can say "try again in a
+       moment" rather than showing somebody a raw 529 JSON body, which is what
+       happened on the first multi-bill upload. */
+    const code = err instanceof PipelineError ? err.code : isOverloaded(err) ? "overloaded" : "pipeline_error";
     await database.update(schema.invoices).set({ status: "failed", errorCode: code }).where(eq(schema.invoices.id, invoiceId));
+    if (code === "overloaded" && !(err instanceof PipelineError)) {
+      throw new PipelineError("overloaded", "the analysis service is busy");
+    }
     throw err;
   }
 }
