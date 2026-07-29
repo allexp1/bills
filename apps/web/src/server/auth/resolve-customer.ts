@@ -49,6 +49,52 @@ export async function resolveCustomer(identity: ClerkIdentity): Promise<Resolved
 
     const existing = byClerk[0];
     if (existing) {
+      /* Someone who signed up with Google or email got a placeholder row, with
+         no way to reach the bills they had already sent over WhatsApp. If they
+         later verify a phone that matches one of those rows, move the Clerk
+         link onto it.
+
+         Only when the placeholder holds no invoices of its own. Otherwise this
+         would orphan bills they uploaded from the website in the meantime, and
+         merging two histories is a decision for them, not for a login. */
+      const isPlaceholder = existing.waId.startsWith("clerk:");
+      if (isPlaceholder && identity.verifiedPhone) {
+        const hash = waHash(identity.verifiedPhone, env.waHashPepper);
+        const prior = (
+          await tx.select().from(schema.customers).where(eq(schema.customers.waHash, hash)).limit(1)
+        )[0];
+
+        if (prior && !prior.clerkUserId && prior.id !== existing.id) {
+          const owned = await tx
+            .select({ id: schema.invoices.id })
+            .from(schema.invoices)
+            .where(eq(schema.invoices.customerId, existing.id))
+            .limit(1);
+
+          if (owned.length === 0) {
+            await tx
+              .update(schema.customers)
+              .set({ clerkUserId: null })
+              .where(eq(schema.customers.id, existing.id));
+            await tx
+              .update(schema.customers)
+              .set({
+                clerkUserId: identity.userId,
+                email: identity.verifiedEmail ?? prior.email,
+                displayName: prior.displayName ?? identity.displayName,
+                linkedAt: new Date(),
+              })
+              .where(eq(schema.customers.id, prior.id));
+
+            return {
+              customerId: prior.id,
+              linkedExisting: true,
+              retentionConsentAt: prior.retentionConsentAt ?? null,
+            };
+          }
+        }
+      }
+
       return {
         customerId: existing.id,
         linkedExisting: false,

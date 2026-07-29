@@ -3,6 +3,9 @@ import { gte } from "drizzle-orm";
 import { db, schema } from "@bills/db";
 import { resolveLocale, waHash, type SupportedLocale } from "@bills/shared";
 import type { BillPage } from "@bills/llm";
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { clerkEnabled } from "../../../lib/clerk-enabled.js";
+import { resolveCustomer } from "../../../server/auth/resolve-customer.js";
 import { env } from "../../../server/env.js";
 import { billQuotaExceeded } from "../../../server/rate-limit.js";
 import { PipelineError, runBillPipeline } from "../../../server/run-bill-pipeline.js";
@@ -15,9 +18,19 @@ const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 const GLOBAL_BILLS_PER_DAY = Number(process.env.GLOBAL_BILLS_PER_DAY ?? 200);
 
 /**
- * Public bill upload. No account: rate limiting keys on a hashed client IP
- * (the hash is the same pseudonym scheme used for WhatsApp numbers — no raw
- * IPs are stored), with a global daily cap bounding total model spend.
+ * Bill upload, with or without an account.
+ *
+ * Signed in, the bill is filed against the customer row behind the session, so
+ * it appears in the portfolio. Signed out, it falls back to a pseudonymous
+ * customer keyed on a hash of the client IP, which is how this endpoint worked
+ * before accounts existed and is still how anonymous uploads are rate limited.
+ * No raw IP is stored; the hash is the same pseudonym scheme used for WhatsApp
+ * numbers.
+ *
+ * Before this, every web upload went to the IP identity even for signed-in
+ * visitors, so bills uploaded from the site could never appear in the uploader
+ * own portfolio. The page looked broken and the data was simply filed
+ * elsewhere.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -34,10 +47,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Per-IP pseudonymous customer.
-    const ip = (req.headers.get("x-forwarded-for") ?? "0.0.0.0").split(",")[0]!.trim();
-    const webId = `web:${waHash(ip, env.waHashPepper)}`;
-    const customer = await upsertWebCustomer(webId);
+    const customer = await customerForRequest(req);
     if (await billQuotaExceeded(customer.id)) {
       return NextResponse.json(
         { error: "quota", detail: "You've reached today's limit of analyzed bills — try again tomorrow." },
@@ -126,6 +136,45 @@ function sanitize(err: unknown): string {
     .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "postgres://[redacted]")
     .replace(/sk-ant-[A-Za-z0-9_-]+/g, "sk-ant-[redacted]")
     .slice(0, 300);
+}
+
+/**
+ * The account's customer row when signed in, otherwise the pseudonymous
+ * per-IP one. Falling back rather than refusing keeps the anonymous upload
+ * path working, which is the one most visitors use.
+ */
+async function customerForRequest(req: NextRequest) {
+  if (clerkEnabled) {
+    try {
+      const { userId } = await auth();
+      if (userId) {
+        const user = await currentUser();
+        const { customerId } = await resolveCustomer({
+          userId,
+          verifiedPhone:
+            user?.phoneNumbers.find((p) => p.verification?.status === "verified")?.phoneNumber ??
+            null,
+          verifiedEmail:
+            user?.emailAddresses.find((e) => e.verification?.status === "verified")?.emailAddress ??
+            null,
+          displayName: user?.firstName ?? null,
+          locale: "en",
+        });
+        const { eq } = await import("drizzle-orm");
+        const rows = await db()
+          .select()
+          .from(schema.customers)
+          .where(eq(schema.customers.id, customerId))
+          .limit(1);
+        if (rows[0]) return rows[0];
+      }
+    } catch {
+      /* A session problem must not block an upload. Fall through to anonymous. */
+    }
+  }
+
+  const ip = (req.headers.get("x-forwarded-for") ?? "0.0.0.0").split(",")[0]!.trim();
+  return upsertWebCustomer(`web:${waHash(ip, env.waHashPepper)}`);
 }
 
 async function upsertWebCustomer(webId: string) {
