@@ -12,7 +12,10 @@ const links = [
 export function SiteNav() {
   return (
     <header className="sticky top-0 z-30 bg-base/85 backdrop-blur-md">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-5 py-4">
+      {/* gap-3 on phones, gap-6 from sm up. At 390px the old flat gap-6 plus
+          four controls overflowed the row, and flex resolved it by wrapping the
+          labels: "Sign / in" on two lines and "Upload a / bill" on two more. */}
+      <nav className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-4 sm:gap-6">
         <a href="/" aria-label="Fixplo.ai home">
           <Logo />
         </a>
@@ -30,10 +33,14 @@ export function SiteNav() {
           ))}
         </ul>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
           <ThemeToggle />
           <AuthControls />
-          <NeuButton href="/upload" size="sm">
+          {/* Hidden on phones on purpose. The hero has a full-width "Upload a
+              bill" a thumb-length below it, so the header copy was the second
+              of two identical calls to action and the one causing the overflow.
+              From sm up there is room and it earns its place. */}
+          <NeuButton href="/upload" size="sm" className="hidden whitespace-nowrap sm:inline-flex">
             Upload a bill
           </NeuButton>
         </div>

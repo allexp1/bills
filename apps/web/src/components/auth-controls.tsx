@@ -27,7 +27,7 @@ export function AuthControls() {
       <Show when="signed-in">
         <a
           href="/portfolio"
-          className="rounded-pill bg-card px-4 py-2 text-sm font-medium text-muted neu-raised-sm neu-press hover:text-ink"
+          className="whitespace-nowrap rounded-pill bg-card px-4 py-2 text-sm font-medium text-muted neu-raised-sm neu-press hover:text-ink"
         >
           My bills
         </a>
