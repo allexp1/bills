@@ -1577,12 +1577,30 @@ body:has(.sum) {
 .sum .s-card,
 .sum .s-stat,
 .sum .s-item,
-.sum .s-rec,
-.sum .terminal {
+.sum .s-rec {
   border: none;
   box-shadow: var(--fx-raised);
   background: var(--fx-bg-card);
   border-radius: 20px;
+}
+
+/* The call script is deliberately NOT one of those.
+   It is a terminal panel: dark surface, light monospace text, macOS traffic
+   lights. Repainting it as a card was wrong twice over. It lost the "read this
+   out loud, it is a script" signal, and because only the background moved
+   while .terminal keeps color: var(--terminal-text), it put near-white text on
+   a light card in light mode, which is unreadable rather than merely plain.
+   It stays dark in both themes, and takes the system's depth instead. */
+.sum .terminal {
+  background: #16132a;
+  color: #e8e4f0;
+  border: none;
+  border-radius: 16px;
+  box-shadow: var(--fx-inset);
+}
+.sum .terminal .bar {
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .sum .s-hero {
