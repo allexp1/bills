@@ -193,8 +193,12 @@ export default async function PortfolioPage() {
                       </span>
                       <NeuBadge tone={badge.tone}>{badge.text}</NeuBadge>
                       {entry.summaryTokenId ? (
+                        /* Not /s/{summaryTokenId}. That is the id of the row
+                           holding the token, not the token, and /s/[token]
+                           answered it with "this link has expired". The route
+                           below proves ownership and mints a fresh link. */
                         <a
-                          href={`/s/${entry.summaryTokenId}`}
+                          href={`/portfolio/open/${entry.invoiceId}`}
                           className="text-sm font-medium text-brand-soft hover:text-brand"
                         >
                           Open

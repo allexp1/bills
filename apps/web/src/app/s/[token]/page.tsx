@@ -9,12 +9,28 @@ import { SummaryView, WEB_STRINGS } from "./summary-view.js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * Shown for a link that is expired, revoked, malformed or points at a deleted
+ * bill. All four are the same thing from the reader's side: this link no longer
+ * works.
+ *
+ * The second line exists because the first one used to be the whole message,
+ * and it told everybody to message us on WhatsApp. That is right for the link
+ * a customer received in a chat thread and wrong for someone who signed up on
+ * the website and may never have used WhatsApp at all.
+ */
 function Expired({ locale }: { locale: SupportedLocale }) {
   const s = WEB_STRINGS[locale];
   return (
     <main className="page expired">
       <h1>{s.expiredTitle}</h1>
       <p>{s.expiredBody}</p>
+      <p>{s.expiredAccount}</p>
+      <p>
+        <a className="cta ghost" href="/portfolio">
+          {s.expiredAccountCta}
+        </a>
+      </p>
     </main>
   );
 }

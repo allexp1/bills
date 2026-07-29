@@ -114,6 +114,15 @@ theirs, and with no `app.customer_id` set it saw zero.
 not journaled, so `pnpm db:migrate` silently skips them. **0008 was applied on
 29 Jul 2026** and both partial indexes verified present.
 
+**`/s/[token]` takes the signed JWT, never `summaryTokenId`.** That column is
+the id of the row holding sha256(jti), and the token itself is deliberately not
+stored, so a link cannot be rebuilt from the database. The portfolio linked to
+`/s/{summaryTokenId}` and every "Open" answered "This link has expired. Message
+us on WhatsApp again" to a signed-in person looking at their own dashboard.
+Owners now go through `/portfolio/open/[invoiceId]`, which proves ownership
+tenant-scoped and mints a fresh token. `/s/[token]` stays unauthenticated,
+because the link arrives in a chat thread.
+
 ## Duplicate bills
 
 People re-send bills constantly, usually because the first reply was missed.

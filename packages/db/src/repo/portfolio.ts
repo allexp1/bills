@@ -50,6 +50,29 @@ function toPortfolioStatus(invoiceStatus: string, hasMission: boolean): Portfoli
   return "requires_review";
 }
 
+/**
+ * Confirms an invoice belongs to this customer, for the signed-in "open my
+ * bill" path.
+ *
+ * Returns the id or null, nothing else. The caller only needs to know whether
+ * it may mint a link, and handing back the row would invite it to be rendered
+ * without a second thought about scope.
+ */
+export async function findOwnedInvoice(
+  db: Db,
+  customerId: string,
+  invoiceId: string,
+): Promise<{ id: string; status: string } | null> {
+  return withTenant(db, customerId, async (tx: TenantDb) => {
+    const rows = await tx
+      .select({ id: schema.invoices.id, status: schema.invoices.status })
+      .from(schema.invoices)
+      .where(and(eq(schema.invoices.id, invoiceId), eq(schema.invoices.customerId, customerId)))
+      .limit(1);
+    return rows[0] ?? null;
+  });
+}
+
 export async function getPortfolio(db: Db, customerId: string): Promise<PortfolioSummary> {
   return withTenant(db, customerId, async (tx: TenantDb) => {
     const invoices = await tx
