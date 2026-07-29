@@ -115,6 +115,8 @@ export function SpendChart({
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const slot = plotW / chart.months.length;
+  const typicalLabel =
+    typicalMinor !== null ? `typically ${money(typicalMinor, chart.currency, locale)}` : "";
   const bw = Math.min(64, slot * 0.62);
 
   return (
@@ -225,14 +227,27 @@ export function SpendChart({
               strokeDasharray="5 5"
               opacity={0.85}
             />
+            {/* A backing chip, because the line crosses the columns and the
+                label landed on top of one: unreadable purple on purple. The
+                chip is the card colour, so it reads as sitting above the plot
+                wherever the line happens to fall. */}
+            <rect
+              x={padL + 2}
+              y={padT + plotH - (typicalMinor / ceiling) * plotH - 20}
+              width={typicalLabel.length * 6.1 + 14}
+              height={17}
+              rx={6}
+              fill="var(--color-card)"
+              opacity={0.92}
+            />
             <text
-              x={padL + 6}
+              x={padL + 9}
               y={padT + plotH - (typicalMinor / ceiling) * plotH - 8}
               fontSize={11}
               fontWeight={700}
               fill="var(--color-brand-soft)"
             >
-              typically {money(typicalMinor, chart.currency, locale)}
+              {typicalLabel}
             </text>
           </g>
         )}
