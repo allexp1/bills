@@ -43,8 +43,21 @@
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
-/* Fixplo surfaces are scoped to .fx so the legacy pages are untouched. */
-.fx {
+/* The tokens live on :root, the appearance stays scoped to .fx.
+   Both matter, for different reasons.
+
+   Scoping the *appearance* keeps the legacy screens (/try, /s/[token]) on
+   globals.css, which is the whole reason .fx exists.
+
+   But the tokens themselves have to be global, because Clerk renders its
+   modals and popovers into a portal at the end of <body>, outside every .fx
+   subtree. With the tokens declared on .fx those var() references resolved to
+   nothing inside the portal, so the account dialog fell back to Clerk's own
+   palette: a dark card with dark default text on it, effectively unreadable.
+
+   Custom properties are inert until something reads them, so declaring them
+   at the root changes nothing for the legacy pages. */
+:root {
   --fx-bg-base: #1e1b2e;
   --fx-bg-card: #262340;
   --fx-bg-card-hover: #2d2a4a;
@@ -58,15 +71,10 @@
   --fx-raised-lg: 14px 14px 28px rgba(0, 0, 0, 0.45), -14px -14px 28px rgba(255, 255, 255, 0.055);
   --fx-inset: inset 4px 4px 8px rgba(0, 0, 0, 0.4), inset -4px -4px 8px rgba(255, 255, 255, 0.05);
   --fx-inset-deep: inset 7px 7px 14px rgba(0, 0, 0, 0.45), inset -7px -7px 14px rgba(255, 255, 255, 0.05);
-
-  background-color: var(--fx-bg-base);
-  color: var(--fx-text-primary);
-  font-family: var(--font-sans);
-  color-scheme: dark;
+  --fx-backdrop: rgba(12, 10, 22, 0.72);
 }
 
-[data-theme="light"] .fx,
-.fx[data-theme="light"] {
+:root[data-theme="light"] {
   --fx-bg-base: #e8e4f0;
   --fx-bg-card: #f0ecf5;
   --fx-bg-card-hover: #ebe7f2;
@@ -80,7 +88,19 @@
   --fx-raised-lg: 14px 14px 28px rgba(174, 168, 186, 0.55), -14px -14px 28px rgba(255, 255, 255, 0.85);
   --fx-inset: inset 4px 4px 8px rgba(174, 168, 186, 0.5), inset -4px -4px 8px rgba(255, 255, 255, 0.8);
   --fx-inset-deep: inset 7px 7px 14px rgba(174, 168, 186, 0.55), inset -7px -7px 14px rgba(255, 255, 255, 0.85);
+  --fx-backdrop: rgba(45, 42, 62, 0.35);
+}
 
+/* Fixplo surfaces are scoped to .fx so the legacy pages are untouched. */
+.fx {
+  background-color: var(--fx-bg-base);
+  color: var(--fx-text-primary);
+  font-family: var(--font-sans);
+  color-scheme: dark;
+}
+
+[data-theme="light"] .fx,
+.fx[data-theme="light"] {
   color-scheme: light;
 }
 

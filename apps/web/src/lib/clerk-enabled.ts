@@ -37,35 +37,75 @@ export const clerkLinkVisible = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABL
  * Clerk's components are styled to sit inside the neumorphic surfaces rather
  * than on top of them: no hard borders, shadows for depth, brand purple for
  * anything actionable.
+ *
+ * Two things had gone wrong here and they compounded.
+ *
+ * First, the variable names were the pre-v7 set. `colorText`,
+ * `colorTextSecondary`, `colorInputBackground` and `colorInputText` no longer
+ * exist; v7 calls them `colorForeground`, `colorMutedForeground`, `colorInput`
+ * and `colorInputForeground`. Unknown keys are dropped silently, so the dark
+ * background applied and the text colour did not: the account dialog rendered
+ * Clerk's default near-black type on our near-black card, which is the
+ * "unreadable account window" that got reported.
+ *
+ * Second, every value was a hard-coded dark hex, so in light mode a dark panel
+ * appeared over a light page. The colours below are var() references to the
+ * same tokens the rest of the app uses, which now live on :root precisely so
+ * they resolve inside Clerk's portal. The dialog follows the theme toggle for
+ * free, with no second source of truth to keep in sync.
+ *
+ * The exceptions are the scale colours. Clerk derives a full ramp from
+ * colorPrimary, colorDanger and colorSuccess, which needs a real parseable
+ * colour rather than a variable reference, so those stay literal. They are
+ * identical in both themes anyway.
  */
 export const clerkAppearance = {
   variables: {
+    /* Parsed by Clerk to build a scale, so these cannot be var(). */
     colorPrimary: "#7c5cfc",
-    colorBackground: "#262340",
-    colorText: "#e8e4f0",
-    colorTextSecondary: "#8a86a0",
-    colorInputBackground: "#262340",
-    colorInputText: "#e8e4f0",
     colorDanger: "#ef4444",
     colorSuccess: "#10b981",
+    colorWarning: "#f59e0b",
+
+    colorBackground: "var(--fx-bg-card)",
+    colorForeground: "var(--fx-text-primary)",
+    colorMuted: "var(--fx-bg-card-hover)",
+    colorMutedForeground: "var(--fx-text-muted)",
+    colorInput: "var(--fx-bg-card)",
+    colorInputForeground: "var(--fx-text-primary)",
+    colorPrimaryForeground: "#ffffff",
+    colorBorder: "var(--fx-border)",
+    colorRing: "#7c5cfc",
+    colorShadow: "var(--fx-border)",
+    colorModalBackdrop: "var(--fx-backdrop)",
+
     borderRadius: "12px",
     fontFamily: "var(--font-geist-sans)",
+    fontFamilyMono: "var(--font-geist-mono)",
   },
   elements: {
+    /* Depth from dual shadows, never a border. Same rule as the rest of the
+       design system, and the reason every border is explicitly removed. */
     card: {
-      backgroundColor: "#262340",
-      boxShadow: "8px 8px 16px rgba(0,0,0,0.4), -8px -8px 16px rgba(255,255,255,0.05)",
+      backgroundColor: "var(--fx-bg-card)",
+      boxShadow: "var(--fx-raised)",
       border: "none",
     },
+    modalContent: {
+      boxShadow: "var(--fx-raised-lg)",
+    },
     formFieldInput: {
-      backgroundColor: "#262340",
-      boxShadow: "inset 4px 4px 8px rgba(0,0,0,0.4), inset -4px -4px 8px rgba(255,255,255,0.05)",
+      backgroundColor: "var(--fx-bg-card)",
+      boxShadow: "var(--fx-inset)",
       border: "none",
     },
     formButtonPrimary: {
-      boxShadow: "4px 4px 10px rgba(0,0,0,0.38), -4px -4px 10px rgba(255,255,255,0.045)",
+      boxShadow: "var(--fx-raised-sm)",
       textTransform: "none" as const,
       fontWeight: 600,
+    },
+    avatarBox: {
+      boxShadow: "var(--fx-raised-sm)",
     },
   },
 };
