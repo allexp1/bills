@@ -73,6 +73,11 @@ Dark neumorphism, from Figma file `ZhznTdXCbCdAwtFEF9bgMd`. Frames:
   Do not "simplify" this by importing `globals.css` directly again.
 - Fixplo styling is scoped to `.fx`. Legacy screens (`/try`, `/s/[token]`) still
   depend on `globals.css` and must keep working.
+- **The `--fx-*` tokens live on `:root`, the appearance stays on `.fx`.** Clerk
+  portals its modals and popovers to the end of `<body>`, outside every `.fx`
+  subtree, so tokens declared on `.fx` resolve to nothing there. That is what
+  made the account dialog unreadable. Custom properties are inert until read,
+  so a root declaration costs the legacy pages nothing. Do not move them back.
 
 ## Tenancy
 
@@ -133,10 +138,31 @@ credentials on production; Clerk's shared ones are development only.
 **Env changes do not redeploy.** `NEXT_PUBLIC_` values are compiled into the
 bundle, so a key added in Vercel reaches nothing until the next build.
 
+**Clerk v7 renamed the appearance variables.** `colorText`,
+`colorTextSecondary`, `colorInputBackground` and `colorInputText` are now
+`colorForeground`, `colorMutedForeground`, `colorInput` and
+`colorInputForeground`. Unknown keys are dropped without a warning, so a stale
+name looks like a design choice rather than a bug: the account dialog rendered
+Clerk's default near-black text on our near-black card for days. The values are
+`var(--fx-*)` references so the dialog follows the theme toggle, except
+`colorPrimary`, `colorDanger`, `colorSuccess` and `colorWarning`, which Clerk
+parses to build a scale and which therefore must stay literal.
+
 Sign-in links onto the existing customer row by **verified phone only**
 (`apps/web/src/server/auth/resolve-customer.ts`). Clerk proves the number,
 `wa_hash` is the same peppered hash. An unverified phone links nothing,
 otherwise anyone could claim a stranger's bills.
+
+A Google or email sign-up therefore gets a placeholder row (`wa_id` of
+`clerk:<userId>`). If that person later verifies a phone that matches an
+unclaimed row, `resolveCustomer` moves the Clerk link onto it, but only while
+the placeholder owns zero invoices. Past that they have two real histories and
+merging them is their decision, not a side effect of logging in.
+
+**`/api/upload` resolves the session customer**, falling back to the per-IP
+pseudonym when signed out. It did not until 29 Jul: every web upload went to the
+IP identity, so signing in and uploading produced an empty portfolio. Both paths
+write a valid row, so nothing ever errored.
 
 ## Voice
 
@@ -151,7 +177,16 @@ Voxplo API. Config: `VOXPLO_BASE_URL`, `VOXPLO_API_KEY`, `VOXPLO_CALLER_ID`.
 ## Environment
 
 Set: `DATABASE_URL`, `ANTHROPIC_API_KEY`, `WA_HASH_PEPPER`, blob and QStash
-tokens, and both Clerk keys on Production, now the `pk_live_` / `sk_live_` pair.
+tokens, and both Clerk keys on Production.
+
+**Production is still serving the development Clerk instance.** Checked again on
+29 Jul 2026: `https://fixplo.ai/` answers with `x-clerk-auth-reason:
+dev-browser-missing`, and Clerk's own orange "Development mode" badge appears at
+the foot of the account dialog. So `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` on
+Production is still a `pk_test_` key despite the live pair having been added.
+Until that is a `pk_live_` key, sessions on the real domain are unreliable by
+design, and any auth symptom should be checked against this before the code is
+blamed.
 
 Missing or unset:
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, QStash trio,
