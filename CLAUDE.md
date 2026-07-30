@@ -200,6 +200,35 @@ document: one provider, one total, line items from both, and no error.
 Chat (WhatsApp, Telegram) does not split yet: pages arrive over minutes into one
 pre-created invoice, so it needs the intake machine to create siblings.
 
+## Deleting
+
+`packages/db/src/repo/delete-bill.ts` is the one routine, used by the portfolio's
+per-bill Delete and by the WhatsApp delete-everything flow. There were two
+implementations and they had drifted: the chat one left the provider, totals and
+dates on the invoice row while telling people it "permanently deletes your bills".
+
+What deleted means:
+
+- **Gone:** the decode, the extraction, the stored pages, every share link
+  revoked, and the identifying columns on the invoice row itself (provider,
+  totals, dates, country, both duplicate fingerprints).
+- **Kept:** the row, holding an id, a customer id, `status = 'deleted'` and
+  timestamps. That is what makes a deletion auditable instead of
+  indistinguishable from a bug. Also a `deletion_requests` row per bill.
+- **Kept:** `bill_stats`. No customer or invoice linkage, month-level time,
+  unlinkable to a person by construction, which is what lets it outlive the bill.
+  **Never add a linking column to that table.**
+
+It refuses rather than half-deleting when a mission is open on the bill: a call
+has been placed quoting its figures and the walk-away ceiling lives in the decode.
+
+The fingerprints are cleared on purpose. Keeping them would let a re-upload be
+answered with "you already have this" and a link to something that no longer
+exists.
+
+`/s/[token]` already handles both a revoked token and `status = 'deleted'`, and
+`/portfolio/open/[invoiceId]` bounces a deleted bill back to the dashboard.
+
 ## Duplicate bills
 
 People re-send bills constantly, usually because the first reply was missed.

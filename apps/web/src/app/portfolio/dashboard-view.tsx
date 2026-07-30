@@ -4,6 +4,7 @@ import type {
   DashboardService,
 } from "@bills/db/repo/dashboard";
 import { Money, NeuBadge, NeuButton, NeuCard } from "../../components/ui/neu.js";
+import { BillList } from "./bill-list.js";
 import { SpendChart } from "./spend-chart.js";
 
 /**
@@ -200,6 +201,10 @@ function ServiceRow({
           Open →
         </a>
       </div>
+
+      {/* The months, collapsed. This is where a single bill is opened or
+          deleted; the row above is about the service as a whole. */}
+      <BillList bills={svc.bills} currency={svc.currency} locale={locale} />
     </NeuCard>
   );
 }

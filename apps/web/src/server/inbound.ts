@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { db, encryptText, schema } from "@bills/db";
+import { db, encryptText, schema, tenantDb } from "@bills/db";
+import { deleteBill } from "@bills/db/repo/delete-bill";
 import {
   GREETINGS,
   INITIAL_STATE,
@@ -305,34 +306,35 @@ async function upsertConversation(customerId: string, peerWaId: string) {
   return created!;
 }
 
-/** Hard-delete customer data: media (storage + rows), extractions, decodes, messages; revoke links. */
+/**
+ * Hard-delete everything for one customer: every bill, then the messages and the
+ * name.
+ *
+ * The per-bill work is deleteBill, the same routine the portfolio's own delete
+ * button calls. It used to be a second implementation inline here, and the two
+ * had drifted: this one left the provider, the totals and the dates on the
+ * invoice row, so "permanently deletes your bills" was not quite true of the
+ * path that said it. One routine, one meaning of deleted.
+ */
 async function executeDeletion(customerId: string): Promise<void> {
   const database = db();
   await database.insert(schema.deletionRequests).values({ customerId, scope: "all" });
+
   const invoices = await database
     .select({ id: schema.invoices.id })
     .from(schema.invoices)
     .where(eq(schema.invoices.customerId, customerId));
+
   for (const inv of invoices) {
-    const media = await database
-      .select()
-      .from(schema.mediaObjects)
-      .where(eq(schema.mediaObjects.invoiceId, inv.id));
-    for (const m of media) {
-      if (m.storageKey) await mediaStore().delete(m.storageKey).catch(() => {});
+    const result = await deleteBill(tenantDb(), customerId, inv.id);
+    /* Blobs after the rows, best effort, same order as the web path: the
+       database is the authoritative record of what went, and a blob left behind
+       is swept by the purge cron. */
+    for (const key of result.storageKeys) {
+      await mediaStore().delete(key).catch(() => {});
     }
-    await database.delete(schema.mediaObjects).where(eq(schema.mediaObjects.invoiceId, inv.id));
-    await database.delete(schema.decodes).where(eq(schema.decodes.invoiceId, inv.id));
-    await database.delete(schema.extractions).where(eq(schema.extractions.invoiceId, inv.id));
-    await database
-      .update(schema.summaryTokens)
-      .set({ revokedAt: new Date() })
-      .where(eq(schema.summaryTokens.invoiceId, inv.id));
-    await database
-      .update(schema.invoices)
-      .set({ status: "deleted", errorCode: null })
-      .where(eq(schema.invoices.id, inv.id));
   }
+
   const convs = await database
     .select({ id: schema.conversations.id })
     .from(schema.conversations)
@@ -340,6 +342,7 @@ async function executeDeletion(customerId: string): Promise<void> {
   for (const c of convs) {
     await database.delete(schema.messages).where(eq(schema.messages.conversationId, c.id));
   }
+
   await database
     .update(schema.customers)
     .set({ displayName: null, deletedAt: new Date() })

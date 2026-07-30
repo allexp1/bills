@@ -25,6 +25,7 @@
     ".": "./src/index.ts",
     "./tenant": "./src/tenant.ts",
     "./repo/portfolio": "./src/repo/portfolio.ts",
-    "./repo/dashboard": "./src/repo/dashboard.ts"
+    "./repo/dashboard": "./src/repo/dashboard.ts",
+    "./repo/delete-bill": "./src/repo/delete-bill.ts"
   }
 }
