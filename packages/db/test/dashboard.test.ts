@@ -198,3 +198,32 @@ describe("the outlier rule", () => {
     expect(alerts.some((a) => a.kind === "outlier")).toBe(false);
   });
 });
+
+describe("service keys in URLs", () => {
+  it("round-trips a key with a pipe and non-Latin text", async () => {
+    const { encodeServiceKey, decodeServiceKey } = await import("../src/repo/dashboard.js");
+    /* The real key: a Hebrew provider name and pipe separators. Neither survives
+       a raw URL segment. */
+    const key = 'פלאפון תקשורת בע"מ|mobile|IL';
+    const encoded = encodeServiceKey(key);
+    expect(encoded).not.toContain("|");
+    expect(encoded).not.toContain("/");
+    expect(encoded).not.toContain("+");
+    expect(encoded).not.toContain("=");
+    expect(decodeServiceKey(encoded)).toBe(key);
+  });
+
+  it("rejects a mangled parameter instead of looking up something impossible", async () => {
+    const { decodeServiceKey } = await import("../src/repo/dashboard.js");
+    /* base64 is lenient enough to decode plenty of junk into bytes, so the guard
+       is a round-trip rather than a try/catch. */
+    expect(decodeServiceKey("not!valid!base64")).toBeNull();
+    expect(decodeServiceKey("")).toBe("");
+  });
+
+  it("gives a stable key that does not depend on position in a list", async () => {
+    const { encodeServiceKey } = await import("../src/repo/dashboard.js");
+    expect(encodeServiceKey("Pelephone|mobile|IL")).toBe(encodeServiceKey("Pelephone|mobile|IL"));
+    expect(encodeServiceKey("Pelephone|mobile|IL")).not.toBe(encodeServiceKey("Pelephone|internet|IL"));
+  });
+});

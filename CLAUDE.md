@@ -200,6 +200,26 @@ document: one provider, one total, line items from both, and no error.
 Chat (WhatsApp, Telegram) does not split yet: pages arrive over minutes into one
 pre-created invoice, so it needs the intake machine to create siblings.
 
+## The provider page
+
+`/portfolio/service/[key]` is everything from one provider: every bill, what they
+add up to, highest and lowest, the month-by-month chart for that service alone,
+its own alerts, and the full bill list with per-bill open and delete.
+
+"Open" on a service card used to go straight to the latest bill, so a card reading
+"5 bills" opened one month's statistics. Cards with more than one bill now go here;
+a single-bill card still goes straight to the bill, because the hop would be empty.
+
+It calls `getDashboard` and filters, rather than adding a per-service query. One
+service is a filter over the same grouping, and a second code path could disagree
+about the typical month or which bill is latest.
+
+The key is `provider|category|country` base64url-encoded, because it carries a
+pipe and, for most of the world, non-Latin text. `decodeServiceKey` round-trips to
+reject a mangled parameter rather than looking up a service that cannot exist.
+Deleting the last bill of a service makes the page's subject vanish, so it
+redirects to the dashboard rather than erroring: nothing is wrong.
+
 ## Deleting
 
 `packages/db/src/repo/delete-bill.ts` is the one routine, used by the portfolio's

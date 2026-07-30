@@ -269,6 +269,33 @@ function cmpPeriod(a: DashboardBill, b: DashboardBill): number {
   return a.createdAt.getTime() - b.createdAt.getTime();
 }
 
+/**
+ * A service key in a URL.
+ *
+ * The key is provider|category|country, so it carries a pipe and, for most of
+ * the world, non-Latin text. base64url survives both, is reversible, and keeps
+ * the link stable for a given service rather than depending on position in a
+ * list, which changes as bills arrive.
+ *
+ * Not a hash: the page has to be able to say which service it is showing even
+ * before it finds it, and an opaque digest would make a wrong link impossible to
+ * debug from the URL alone.
+ */
+export function encodeServiceKey(key: string): string {
+  return Buffer.from(key, "utf8").toString("base64url");
+}
+
+export function decodeServiceKey(encoded: string): string | null {
+  try {
+    const key = Buffer.from(encoded, "base64url").toString("utf8");
+    /* Round-trip, so a mangled parameter is rejected rather than turned into a
+       lookup for a service that cannot exist. */
+    return encodeServiceKey(key) === encoded ? key : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Middle value, mean of the two middles when there is an even count. */
 function median(values: number[]): number | null {
   if (values.length === 0) return null;

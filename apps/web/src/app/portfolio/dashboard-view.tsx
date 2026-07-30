@@ -1,8 +1,4 @@
-import type {
-  Dashboard,
-  DashboardAlert,
-  DashboardService,
-} from "@bills/db/repo/dashboard";
+import { encodeServiceKey, type Dashboard, type DashboardAlert, type DashboardService } from "@bills/db/repo/dashboard";
 import { Money, NeuBadge, NeuButton, NeuCard } from "../../components/ui/neu.js";
 import { BillList } from "./bill-list.js";
 import { SpendChart } from "./spend-chart.js";
@@ -194,16 +190,25 @@ function ServiceRow({
           currency={svc.currency}
           locale={locale}
         />
+        {/* More than one bill goes to the provider page, which is the whole
+            picture: every bill, what they add up to, the shape over time. It used
+            to go straight to the latest bill, so a card saying "5 bills" opened
+            one month's statistics. For a single bill the provider page would be
+            an empty hop, so that goes straight to the bill. */}
         <a
-          href={`/portfolio/open/${svc.latestInvoiceId}`}
+          href={
+            svc.bills.length > 1
+              ? `/portfolio/service/${encodeServiceKey(svc.key)}`
+              : `/portfolio/open/${svc.latestInvoiceId}`
+          }
           className="text-sm font-medium text-brand-soft hover:text-brand"
         >
-          Open →
+          {svc.bills.length > 1 ? "See all →" : "Open →"}
         </a>
       </div>
 
-      {/* The months, collapsed. This is where a single bill is opened or
-          deleted; the row above is about the service as a whole. */}
+      {/* The months, collapsed, for opening or deleting one without leaving the
+          dashboard. The row above is about the service as a whole. */}
       <BillList bills={svc.bills} currency={svc.currency} locale={locale} />
     </NeuCard>
   );

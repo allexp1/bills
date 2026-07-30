@@ -21,13 +21,16 @@ export function BillList({
   bills,
   currency,
   locale = "en",
+  startOpen = false,
 }: {
   bills: DashboardBill[];
   currency: string | null;
   locale?: string;
+  /** True on the provider page, where this list is the point of the screen. */
+  startOpen?: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -154,16 +157,18 @@ export function BillList({
 
       {error ? <p className="mt-3 text-sm text-alert">{error}</p> : null}
 
-      <button
-        type="button"
-        onClick={() => {
-          setOpen(false);
-          setConfirming(null);
-        }}
-        className="mt-3 text-sm font-medium text-muted hover:text-ink"
-      >
-        Hide ▴
-      </button>
+      {!startOpen && (
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setConfirming(null);
+          }}
+          className="mt-3 text-sm font-medium text-muted hover:text-ink"
+        >
+          Hide ▴
+        </button>
+      )}
     </div>
   );
 }
