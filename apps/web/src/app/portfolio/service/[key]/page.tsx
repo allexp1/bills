@@ -8,6 +8,7 @@ import { clerkEnabled } from "../../../../lib/clerk-enabled.js";
 import { SiteFooter, SiteNav } from "../../../../components/site-nav.js";
 import { Money, NeuBadge, NeuButton, NeuCard } from "../../../../components/ui/neu.js";
 import { BillList } from "../../bill-list.js";
+import { money, periodLabel } from "../../format.js";
 import { SpendChart } from "../../spend-chart.js";
 
 export const dynamic = "force-dynamic";
@@ -34,19 +35,6 @@ export const metadata: Metadata = {
  * inconsistency nobody reports and everybody notices.
  */
 
-function money(minor: number | null, currency: string | null, locale = "en"): string {
-  if (minor === null) return "n/a";
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency: currency ?? "USD",
-      maximumFractionDigits: 2,
-    }).format(minor / 100);
-  } catch {
-    return `${(minor / 100).toFixed(2)} ${currency ?? ""}`.trim();
-  }
-}
-
 const CATEGORY_LABEL: Record<string, string> = {
   mobile: "Mobile",
   internet: "Internet",
@@ -66,8 +54,11 @@ function extremes(svc: DashboardService) {
   return { low: sorted[0]!, high: sorted[sorted.length - 1]! };
 }
 
-function periodOf(b: { periodStart: string | null; periodEnd: string | null }): string {
-  return b.periodStart && b.periodEnd ? `${b.periodStart} to ${b.periodEnd}` : "period not on the bill";
+function periodOf(
+  b: { periodStart: string | null; periodEnd: string | null },
+  locale = "en",
+): string {
+  return periodLabel(b.periodStart, b.periodEnd, locale) ?? "period not on the bill";
 }
 
 export default async function ServicePage({ params }: { params: Promise<{ key: string }> }) {
@@ -126,18 +117,27 @@ export default async function ServicePage({ params }: { params: Promise<{ key: s
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-soft">
               {svc.category ? (CATEGORY_LABEL[svc.category] ?? svc.category) : "Provider"}
             </p>
-            <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">
-              <span className="truncate">{svc.providerName ?? "Unnamed provider"}</span>
+            <h1 className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">
+              {/* bdi, because a provider name is often Hebrew or Arabic and
+                  would otherwise drag the badges beside it to the wrong side. */}
+              <bdi className="min-w-0 truncate">{svc.providerName ?? "Unnamed provider"}</bdi>
               {svc.country ? <NeuBadge tone="neutral">{svc.country}</NeuBadge> : null}
               {svc.status === "negotiating" ? <NeuBadge tone="brand">Negotiating</NeuBadge> : null}
             </h1>
             <p className="mt-2 text-sm text-muted">
               {svc.bills.length === 1 ? "1 bill" : `${svc.bills.length} bills`}
+              {/* Oldest start to newest end. This used to split a formatted
+                  string on " to " and glue an ISO date onto the result, which
+                  printed one half of the span in each format. */}
               {svc.bills.length > 1
-                ? ` · ${periodOf(svc.bills[svc.bills.length - 1]!).split(" to ")[0]} to ${
-                    svc.bills[0]?.periodEnd ?? "now"
+                ? ` · ${
+                    periodLabel(
+                      svc.bills[svc.bills.length - 1]?.periodStart ?? null,
+                      svc.bills[0]?.periodEnd ?? null,
+                      locale,
+                    ) ?? "period not on the bill"
                   }`
-                : ` · ${periodOf(svc.bills[0]!)}`}
+                : ` · ${periodOf(svc.bills[0]!, locale)}`}
             </p>
           </div>
           <NeuButton href="/upload" tone="savings">
@@ -151,7 +151,7 @@ export default async function ServicePage({ params }: { params: Promise<{ key: s
             <p className="mt-3 text-4xl font-extrabold text-ink">
               <Money>{money(svc.latestMinor, svc.currency, locale)}</Money>
             </p>
-            <p className="mt-3 text-xs text-dim">{periodOf(svc.bills[0]!)}</p>
+            <p className="mt-3 text-xs text-dim">{periodOf(svc.bills[0]!, locale)}</p>
           </NeuCard>
 
           <NeuCard>
@@ -191,14 +191,14 @@ export default async function ServicePage({ params }: { params: Promise<{ key: s
               <p className="mt-2 text-2xl font-extrabold text-ink">
                 <Money>{money(ext.high.totalMinor, svc.currency, locale)}</Money>
               </p>
-              <p className="mt-2 text-xs text-dim">{periodOf(ext.high)}</p>
+              <p className="mt-2 text-xs text-dim">{periodOf(ext.high, locale)}</p>
             </NeuCard>
             <NeuCard elevation="inset">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-dim">Lowest</p>
               <p className="mt-2 text-2xl font-extrabold text-ink">
                 <Money>{money(ext.low.totalMinor, svc.currency, locale)}</Money>
               </p>
-              <p className="mt-2 text-xs text-dim">{periodOf(ext.low)}</p>
+              <p className="mt-2 text-xs text-dim">{periodOf(ext.low, locale)}</p>
             </NeuCard>
           </section>
         ) : null}

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { DashboardBill } from "@bills/db/repo/dashboard";
 import { NeuButton } from "../../components/ui/neu.js";
+import { periodLabel } from "./format.js";
 
 /**
  * The months inside a service card, each one deletable.
@@ -97,29 +98,35 @@ export function BillList({
       <ul className="space-y-1.5">
         {visible.map((b) => (
           <li key={b.invoiceId} className="rounded-button bg-card px-4 py-2.5 neu-inset">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span className="min-w-0 flex-1 text-sm text-muted">
-                {b.periodStart && b.periodEnd ? `${b.periodStart} to ${b.periodEnd}` : "Period not on the bill"}
+            {/* Stacked on a phone. `flex-1` on the period gave it a zero
+                flex-basis, so it never forced a wrap and instead collapsed to a
+                one-word column while the amount and the two actions kept their
+                width. Same bug as the service card above it. */}
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-x-4">
+              <span className="min-w-0 text-sm text-muted sm:flex-1">
+                {periodLabel(b.periodStart, b.periodEnd, locale) ?? "Period not on the bill"}
               </span>
-              <span className="font-mono text-sm font-semibold text-ink">{money(b.totalMinor)}</span>
-              <a
-                href={`/portfolio/open/${b.invoiceId}`}
-                className="text-sm font-medium text-brand-soft hover:text-brand"
-              >
-                Open
-              </a>
-              {confirming === b.invoiceId ? null : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError(null);
-                    setConfirming(b.invoiceId);
-                  }}
-                  className="text-sm font-medium text-muted hover:text-alert"
+              <div className="flex items-center gap-x-4">
+                <span className="font-mono text-sm font-semibold text-ink">{money(b.totalMinor)}</span>
+                <a
+                  href={`/portfolio/open/${b.invoiceId}`}
+                  className="ms-auto text-sm font-medium text-brand-soft hover:text-brand sm:ms-0"
                 >
-                  Delete
-                </button>
-              )}
+                  Open
+                </a>
+                {confirming === b.invoiceId ? null : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setConfirming(b.invoiceId);
+                    }}
+                    className="text-sm font-medium text-muted hover:text-alert"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
             </div>
 
             {confirming === b.invoiceId && (

@@ -1,6 +1,7 @@
 import { encodeServiceKey, type Dashboard, type DashboardAlert, type DashboardService } from "@bills/db/repo/dashboard";
 import { Money, NeuBadge, NeuButton, NeuCard } from "../../components/ui/neu.js";
 import { BillList } from "./bill-list.js";
+import { dateLabel, money, periodLabel } from "./format.js";
 import { SpendChart } from "./spend-chart.js";
 
 /**
@@ -16,29 +17,6 @@ import { SpendChart } from "./spend-chart.js";
  * not on a bill or arithmetic over figures that are. Savings stay "n/a" until a
  * negotiation completes and the number can be cited to the offer it came from.
  */
-
-function money(minor: number | null, currency: string | null, locale = "en"): string {
-  if (minor === null) return "n/a";
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency: currency ?? "USD",
-      maximumFractionDigits: 2,
-    }).format(minor / 100);
-  } catch {
-    return `${(minor / 100).toFixed(2)} ${currency ?? ""}`.trim();
-  }
-}
-
-function dateLabel(iso: string, locale = "en"): string {
-  try {
-    return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" }).format(
-      new Date(iso),
-    );
-  } catch {
-    return iso;
-  }
-}
 
 const CATEGORY_LABEL: Record<string, string> = {
   mobile: "Mobile",
@@ -157,12 +135,23 @@ function ServiceRow({
     .map((b) => b.totalMinor)
     .filter((v): v is number => v !== null);
 
+  const period = periodLabel(svc.bills[0]?.periodStart ?? null, svc.bills[0]?.periodEnd ?? null, locale);
+
   return (
     <NeuCard as="li" className="px-5 py-4">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-        <div className="min-w-0 flex-1">
-          <p className="flex flex-wrap items-center gap-2 text-base font-bold text-ink">
-            <span className="truncate">{svc.providerName ?? "Unnamed provider"}</span>
+      {/* Stacked on a phone, one row from sm up.
+          NOT flex-wrap on the outer row: `flex-1` means `flex-basis: 0`, so the
+          text block's hypothetical size is zero, it always "fits", and wrapping
+          never triggers. The money, the pill and the link kept their natural
+          width and squeezed the name and dates into a column about one word
+          wide. Stacking is what actually gives the text the line. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-x-5">
+        <div className="min-w-0 sm:flex-1">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-base font-bold text-ink">
+            {/* A provider name is frequently not Latin. bdi keeps a Hebrew or
+                Arabic name from dragging the punctuation around it to the wrong
+                side of the line. */}
+            <bdi className="min-w-0 truncate">{svc.providerName ?? "Unnamed provider"}</bdi>
             {showCountry && svc.country ? <NeuBadge tone="neutral">{svc.country}</NeuBadge> : null}
             {svc.status === "negotiating" ? <NeuBadge tone="brand">Negotiating</NeuBadge> : null}
             {svc.promoEndDate ? (
@@ -173,38 +162,42 @@ function ServiceRow({
             {svc.bills.length === 1
               ? "One bill so far"
               : `${svc.bills.length} bills · typically ${money(svc.medianMinor, svc.currency, locale)}`}
-            {svc.bills[0]?.periodStart && svc.bills[0]?.periodEnd
-              ? ` · latest ${svc.bills[0].periodStart} to ${svc.bills[0].periodEnd}`
-              : ""}
           </p>
+          {/* Its own line rather than a third clause. On a phone the run-on
+              version wrapped mid-date, which is where it stopped being a date. */}
+          {period ? <p className="mt-0.5 text-sm text-dim">Latest {period}</p> : null}
         </div>
 
-        <Spark values={trend} />
+        {/* One group, so these stay on a single line under the name on a phone
+            instead of becoming three more stacked rows. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Spark values={trend} />
 
-        <span className="text-base font-semibold text-ink">
-          <Money>{money(svc.latestMinor, svc.currency, locale)}</Money>
-        </span>
-        <Delta
-          latest={svc.latestMinor}
-          previous={svc.previousMinor}
-          currency={svc.currency}
-          locale={locale}
-        />
-        {/* More than one bill goes to the provider page, which is the whole
-            picture: every bill, what they add up to, the shape over time. It used
-            to go straight to the latest bill, so a card saying "5 bills" opened
-            one month's statistics. For a single bill the provider page would be
-            an empty hop, so that goes straight to the bill. */}
-        <a
-          href={
-            svc.bills.length > 1
-              ? `/portfolio/service/${encodeServiceKey(svc.key)}`
-              : `/portfolio/open/${svc.latestInvoiceId}`
-          }
-          className="text-sm font-medium text-brand-soft hover:text-brand"
-        >
-          {svc.bills.length > 1 ? "See all →" : "Open →"}
-        </a>
+          <span className="text-base font-semibold text-ink">
+            <Money>{money(svc.latestMinor, svc.currency, locale)}</Money>
+          </span>
+          <Delta
+            latest={svc.latestMinor}
+            previous={svc.previousMinor}
+            currency={svc.currency}
+            locale={locale}
+          />
+          {/* More than one bill goes to the provider page, which is the whole
+              picture: every bill, what they add up to, the shape over time. It used
+              to go straight to the latest bill, so a card saying "5 bills" opened
+              one month's statistics. For a single bill the provider page would be
+              an empty hop, so that goes straight to the bill. */}
+          <a
+            href={
+              svc.bills.length > 1
+                ? `/portfolio/service/${encodeServiceKey(svc.key)}`
+                : `/portfolio/open/${svc.latestInvoiceId}`
+            }
+            className="ms-auto whitespace-nowrap text-sm font-medium text-brand-soft hover:text-brand sm:ms-0"
+          >
+            {svc.bills.length > 1 ? "See all →" : "Open →"}
+          </a>
+        </div>
       </div>
 
       {/* The months, collapsed, for opening or deleting one without leaving the
