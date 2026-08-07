@@ -16,6 +16,8 @@ const pensionFields: StatementFields = {
   coverages: [],
   deductible: null,
   renewalDate: null,
+  promoEndDate: "2029-10-31",
+  maritalStatus: "רווק",
   employeeContribution: "1.740,00",
   employerContribution: "1.885,00",
   severanceContribution: "2.416,00",
@@ -23,6 +25,8 @@ const pensionFields: StatementFields = {
   feeOnAccrualPercent: "0,20",
   feesChargedAmount: "182,30",
   insuranceCostAmount: "96,10",
+  disabilityCostAmount: "4.867,01",
+  survivorsCostAmount: "1.570,75",
   accrualTotal: "241.503,00",
   returnPercent: "3,1",
   projectedMonthlyPension: "9.870,00",
@@ -75,6 +79,7 @@ describe("statement pack", () => {
     expect(facts.no_beneficiaries).toBe(true);
     expect(facts.insurance_inside_pension).toBe(true);
     expect(facts.check_deposits).toBe(true);
+    expect(facts.fee_discount_ending).toBe(true);
     // Not printed on this statement → undecidable, never asserted.
     expect(facts.guaranteed_factor).toBeNull();
   });

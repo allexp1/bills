@@ -55,6 +55,22 @@ export const StatementFieldsSchema = z.object({
   ),
   deductible: z.string().nullable(),
   renewalDate: z.string().nullable(),
+  /**
+   * When a printed fee/premium discount ENDS (Israeli pension statements
+   * print תום תקופת ההנחה, after which the management-fee rate changes).
+   * Named promoEndDate on purpose: the pipeline already lifts this field
+   * from any category into the renewal-reminder machinery, so a statement's
+   * expiring fee discount gets the same "this is the moment to ask" nudge a
+   * bill's expiring promo does.
+   */
+  promoEndDate: z.string().nullable(),
+  /**
+   * Marital status exactly as printed, when the statement prints it. It
+   * changes the survivors-cover explanation from a conditional aside into
+   * the customer's own situation — statements themselves note that a member
+   * without a partner can waive that cover.
+   */
+  maritalStatus: z.string().nullable(),
 
   /* ---- pension / long-term savings ---- */
   employeeContribution: z.string().nullable(),
@@ -69,6 +85,14 @@ export const StatementFieldsSchema = z.object({
   feesChargedAmount: z.string().nullable(),
   /** Cost of embedded insurance cover (עלות כיסויים ביטוחיים), as printed. */
   insuranceCostAmount: z.string().nullable(),
+  /** Cost of the disability (נכות) cover alone, when printed separately. */
+  disabilityCostAmount: z.string().nullable(),
+  /**
+   * Cost of the survivors (שארים) cover alone, when printed separately. The
+   * number that matters for the waiver conversation: a member without a
+   * partner or children may be paying this for cover that serves nobody.
+   */
+  survivorsCostAmount: z.string().nullable(),
   /** Total accrued savings (צבירה). */
   accrualTotal: z.string().nullable(),
   /** Return for the period, percent as printed. */
@@ -139,6 +163,11 @@ export const statementPack: CategoryPack<StatementFields> = {
     guaranteedAnnuityFactor:
       "true only if the document states a guaranteed annuity factor (מקדם קצבה מובטח). Mostly pre-2013 managers' insurance. Never infer it from the product's age.",
     premiumFrequency: "monthly, annual or one-off, as printed — a ₪90 monthly premium and a ₪90 annual one are different products.",
+    promoEndDate:
+      "ISO date when a printed fee or premium DISCOUNT ends (תום תקופת ההנחה on Israeli pension statements — the management-fee rate changes after it). Only when explicitly printed.",
+    disabilityCostAmount: "The disability (נכות) cover's own cost line, when the statement prints the split.",
+    survivorsCostAmount: "The survivors (שארים) cover's own cost line, when the statement prints the split.",
+    maritalStatus: "Marital status exactly as printed on the statement (רווק, נשוי…), null when not printed.",
   },
   decodeHints: {
     lineItemGlossary:
@@ -158,8 +187,17 @@ export const statementPack: CategoryPack<StatementFields> = {
       {
         id: "insurance_inside_pension",
         promptFragment:
-          "A pension product embeds disability and survivors insurance whose cost appears separately. Explain what each cover pays and that the survivors cover mainly serves a partner or children — someone without either can ask their fund about adjusting it (a request to their OWN fund, not a product change).",
-        detect: (f) => (f.survivorsCoverAmount !== null || f.insuranceCostAmount !== null ? true : null),
+          "A pension product embeds disability and survivors insurance whose cost appears separately. Explain what each cover pays and that the survivors cover mainly serves a partner or children — someone without either can ask their fund about adjusting it (a request to their OWN fund, not a product change). When the survivors cover's own cost is printed, name that exact amount; when the statement also prints a single marital status, connect the two plainly — it is their own situation, not a hypothetical.",
+        detect: (f) =>
+          f.survivorsCoverAmount !== null || f.survivorsCostAmount !== null || f.insuranceCostAmount !== null
+            ? true
+            : null,
+      },
+      {
+        id: "fee_discount_ending",
+        promptFragment:
+          "The statement prints an end date for the current fee discount, after which the rate changes. Say when, and that asking the fund to extend the discount before then is a normal request that costs nothing.",
+        detect: (f) => (f.promoEndDate !== null ? true : null),
       },
       {
         id: "guaranteed_factor",

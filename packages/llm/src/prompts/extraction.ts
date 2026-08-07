@@ -1,6 +1,6 @@
 import { combinedExtractionHints } from "@bills/category-packs";
 
-export const EXTRACTION_PROMPT_VERSION = "extract-v5";
+export const EXTRACTION_PROMPT_VERSION = "extract-v6";
 
 /**
  * Static system prompt for the vision extraction call. Deliberately free of
