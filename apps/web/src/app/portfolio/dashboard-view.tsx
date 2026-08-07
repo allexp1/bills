@@ -5,6 +5,7 @@ import {
   type DashboardAlert,
   type DashboardService,
   type InsuranceFamily,
+  type PolicyHolding,
 } from "@bills/db/repo/dashboard";
 import { Money, NeuBadge, NeuButton, NeuCard } from "../../components/ui/neu.js";
 import { BillList } from "./bill-list.js";
@@ -248,23 +249,62 @@ function ServiceRow({
 
 /**
  * The consolidated insurance picture, shown once two or more insurance or
- * pension services exist. Each statement shows one company's slice; nobody
- * mails you the whole. Families with two companies get the overlap note —
- * worded per family, because duplicate health cover is waste while duplicate
- * life cover is a choice.
+ * pension positions exist — decoded statements and registry-listed holdings
+ * together. Families with two companies get the overlap note — worded per
+ * family, because duplicate health cover is waste while duplicate life cover
+ * is a choice. Registry holdings without a statement render as gaps to fill:
+ * the checklist that pulls the rest of the documents in.
  */
-function InsuranceOverviewSection({ services }: { services: DashboardService[] }) {
-  const overview = insuranceOverview(services);
-  if (!overview) return null;
+function InsuranceOverviewSection({
+  services,
+  holdings,
+}: {
+  services: DashboardService[];
+  holdings: PolicyHolding[];
+}) {
+  const overview = insuranceOverview(services, holdings);
+  const hasRegistry = holdings.length > 0;
 
-  const allIsrael = overview.families.every((f) => f.services.every((s) => s.country === "IL"));
+  /* No picture yet: invite the registry fetch instead of rendering nothing.
+     One upload turns this section from sales pitch into their actual data. */
+  if (!overview) {
+    return (
+      <section className="mt-12">
+        <h2 className="text-lg font-bold text-ink">See ALL your insurance</h2>
+        <NeuCard className="mt-4">
+          <p className="max-w-2xl text-sm leading-relaxed text-muted">
+            Israel keeps an official registry of every insurance policy you hold at every company —
+            Har haBituach. Download your list there and upload it here, and this section becomes your
+            full picture: every policy, side by side, with overlaps flagged.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <NeuButton href="/guide/registry">How to get your list (3 minutes)</NeuButton>
+            <a
+              href="https://harb.cma.gov.il"
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm font-medium text-brand-soft hover:text-brand"
+            >
+              harb.cma.gov.il →
+            </a>
+          </div>
+        </NeuCard>
+      </section>
+    );
+  }
+
+  const allIsrael = overview.families.every(
+    (f) => f.services.every((s) => s.country === "IL") && f.holdings.every((h) => h.country === "IL"),
+  );
+  const registryInvoiceId = holdings[0]?.invoiceId;
 
   return (
     <section className="mt-12">
       <h2 className="text-lg font-bold text-ink">Your insurance, side by side</h2>
       <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
-        {overview.serviceCount} policies and savings products across companies. Each statement shows
-        one company&apos;s slice; this is the whole.
+        {overview.serviceCount} policies and savings products across companies
+        {hasRegistry ? ", from your official registry list and your uploaded statements" : ""}. Each
+        statement shows one company&apos;s slice; this is the whole.
       </p>
       <NeuCard className="mt-4 divide-y divide-hairline p-0">
         {overview.families.map((f) => (
@@ -275,7 +315,7 @@ function InsuranceOverviewSection({ services }: { services: DashboardService[] }
               </p>
               {f.overlap ? (
                 <NeuBadge tone={f.family === "life_insurance" ? "neutral" : "warning"}>
-                  {f.services.length} companies
+                  {f.services.length + f.holdings.length} companies
                 </NeuBadge>
               ) : null}
             </div>
@@ -286,18 +326,48 @@ function InsuranceOverviewSection({ services }: { services: DashboardService[] }
                   <bdi>{s.providerName ?? "Unnamed provider"}</bdi>
                 </span>
               ))}
+              {f.holdings.map((h, i) => (
+                <span key={h.id}>
+                  {i > 0 || f.services.length > 0 ? " · " : ""}
+                  <bdi>{h.company}</bdi>
+                  <span className="text-dim"> (no statement yet)</span>
+                </span>
+              ))}
             </p>
             {f.overlap && OVERLAP_NOTE[f.family] ? (
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-dim">{OVERLAP_NOTE[f.family]}</p>
             ) : null}
+            {f.holdings.length > 0 && !f.overlap ? (
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-dim">
+                Listed in your registry, details unknown — forward this company&apos;s statement and it
+                gets explained like the rest.
+              </p>
+            ) : null}
           </div>
         ))}
-        {allIsrael ? (
-          <p className="px-5 py-3 text-xs leading-relaxed text-dim">
-            Israel&apos;s official registry, Har haBituach (harb.cma.gov.il), lists every policy you
-            hold at every company — the way to check nothing is missing from this picture.
-          </p>
-        ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+          {allIsrael ? (
+            <p className="max-w-xl text-xs leading-relaxed text-dim">
+              {hasRegistry
+                ? "From Har haBituach, Israel's official registry. Re-fetch and re-upload it after any change to keep this picture fresh."
+                : "Israel's official registry, Har haBituach (harb.cma.gov.il), lists every policy you hold at every company — the way to check nothing is missing from this picture."}
+            </p>
+          ) : (
+            <span />
+          )}
+          {registryInvoiceId ? (
+            <a
+              href={`/portfolio/open/${registryInvoiceId}`}
+              className="whitespace-nowrap text-sm font-medium text-brand-soft hover:text-brand"
+            >
+              Full registry report →
+            </a>
+          ) : (
+            <a href="/guide/registry" className="whitespace-nowrap text-sm font-medium text-brand-soft hover:text-brand">
+              Get your full list →
+            </a>
+          )}
+        </div>
       </NeuCard>
     </section>
   );
@@ -415,7 +485,7 @@ export function DashboardView({ data, locale = "en" }: { data: Dashboard; locale
         </section>
       )}
 
-      <InsuranceOverviewSection services={services} />
+      <InsuranceOverviewSection services={services} holdings={data.holdings} />
 
       {charts.map((chart) => (
         <section className="mt-12" key={chart.currency}>

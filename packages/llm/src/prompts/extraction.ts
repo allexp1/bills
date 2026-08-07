@@ -1,6 +1,6 @@
 import { combinedExtractionHints } from "@bills/category-packs";
 
-export const EXTRACTION_PROMPT_VERSION = "extract-v6";
+export const EXTRACTION_PROMPT_VERSION = "extract-v7";
 
 /**
  * Static system prompt for the vision extraction call. Deliberately free of
@@ -13,7 +13,7 @@ Hard rules — these are absolute:
 1. Return null for any field not clearly visible on the bill. NEVER guess, infer from typical values, or fill in plausible numbers.
 2. Transcribe amounts EXACTLY as printed (keep the bill's decimal separators, e.g. "89,10").
 3. Record the page number for every line item.
-4. Detect the document's category from its content. Use "energy", "broadband" or "mobile" when the bill clearly is one of those. Use "statement" for insurance policies and pension/savings statements — pension fund, managers' insurance, provident or study fund, health, car, home, life, travel — and record which in statement.kind. Use "utility" for ANY OTHER metered or subscription bill — water, sewerage, waste, heating, council tax, gym, alarm monitoring — and record what it actually is in utility.serviceType. Reserve "unknown" for documents that are not a consumer bill or statement at all.
+4. Detect the document's category from its content. Use "energy", "broadband" or "mobile" when the bill clearly is one of those. Use "statement" for insurance policies and pension/savings statements — pension fund, managers' insurance, provident or study fund, health, car, home, life, travel — and record which in statement.kind. Use "registry" for an official multi-policy listing that enumerates policies across SEVERAL companies in one table (Israel's הר הביטוח export is the launch case) — it is a list, not a bill or a single statement. Use "utility" for ANY OTHER metered or subscription bill — water, sewerage, waste, heating, council tax, gym, alarm monitoring — and record what it actually is in utility.serviceType. Reserve "unknown" for documents that are not a consumer bill or statement at all.
 5. Mask all but the last 3 digits of any personal phone numbers you transcribe. On statements, NEVER transcribe medical conditions, diagnoses, treatments or beneficiary names — coverage labels and amounts only.
 6. printedNextSteps: copy instructions the bill itself prints (tariff end dates, "to switch do X", "your renewal quote is Y", cancellation URLs) — verbatim, translated to nothing.
 7. currency as ISO-4217, country as ISO-3166 alpha-2, dates as ISO YYYY-MM-DD.

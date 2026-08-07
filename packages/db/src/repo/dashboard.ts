@@ -107,8 +107,24 @@ export interface DashboardChart {
   series: DashboardChartSeries[];
 }
 
+/** One policy from the customer's registry export — held, not yet decoded. */
+export interface PolicyHolding {
+  id: string;
+  /** The registry upload it came from, for the "view full report" link. */
+  invoiceId: string;
+  /** pension | health_insurance | car_insurance | … */
+  family: string;
+  company: string;
+  productName: string | null;
+  /** active | inactive | unknown. */
+  status: string;
+  country: string | null;
+}
+
 export interface Dashboard {
   services: DashboardService[];
+  /** From the registry upload, empty until one exists (or pre-0009). */
+  holdings: PolicyHolding[];
   alerts: DashboardAlert[];
   /**
    * One entry per currency, never summed across them. A shekel and a euro do
@@ -173,11 +189,40 @@ export async function getDashboard(db: Db, customerId: string, today = new Date(
       .where(and(eq(schema.missions.customerId, customerId), isNotNull(schema.missions.invoiceId)));
     const negotiating = new Set(openMissions.map((m) => m.invoiceId).filter(Boolean) as string[]);
 
+    /**
+     * Holdings from the customer's registry upload (Har haBituach), when the
+     * table exists and they have one. Best-effort: the table arrives with
+     * migration 0009, and a dashboard must render without it.
+     */
+    let holdings: PolicyHolding[] = [];
+    try {
+      holdings = await tx
+        .select({
+          id: schema.policyHoldings.id,
+          invoiceId: schema.policyHoldings.invoiceId,
+          family: schema.policyHoldings.family,
+          company: schema.policyHoldings.company,
+          productName: schema.policyHoldings.productName,
+          status: schema.policyHoldings.status,
+          country: schema.policyHoldings.country,
+        })
+        .from(schema.policyHoldings)
+        .where(eq(schema.policyHoldings.customerId, customerId))
+        .limit(200);
+    } catch {
+      holdings = [];
+    }
+
     /* Group into services. The key is deliberately coarse: an unnamed provider
        falls back to its own invoice id rather than collapsing every
-       under-extracted bill into one imaginary service called "null". */
+       under-extracted bill into one imaginary service called "null".
+
+       Registry uploads are excluded: the registry is a list about services,
+       not a service — its content surfaces through `holdings` instead, and a
+       card reading "הר הביטוח · n/a" would be noise pretending to be a bill. */
     const byKey = new Map<string, DashboardService>();
     for (const r of rows) {
+      if (r.category === "registry") continue;
       const key = r.providerName
         ? `${r.providerName}|${r.category ?? "?"}|${r.country ?? "?"}`
         : `unnamed:${r.id}`;
@@ -246,6 +291,7 @@ export async function getDashboard(db: Db, customerId: string, today = new Date(
 
     return {
       services,
+      holdings,
       alerts: buildAlerts(services, today),
       totals: buildTotals(services),
       charts: buildCharts(services),
@@ -493,6 +539,8 @@ export type InsuranceFamily = (typeof INSURANCE_FAMILIES)[number];
 export interface InsuranceFamilyOverview {
   family: InsuranceFamily;
   services: DashboardService[];
+  /** Registry-listed policies in this family with no decoded statement yet. */
+  holdings: PolicyHolding[];
   /**
    * Two or more companies in one family. For indemnity families this is the
    * duplicate-coverage (double insurance) signal; for pension it means fees
@@ -508,23 +556,65 @@ export interface InsuranceOverview {
   overlapCount: number;
 }
 
-/** Null until there are at least two insurance services — one is not a picture. */
-export function insuranceOverview(services: DashboardService[]): InsuranceOverview | null {
+/**
+ * Same company, sloppy match on purpose: the registry prints the full legal
+ * name ("מגדל מקפת קרנות פנסיה וקופות גמל בע\"מ") where the statement's own
+ * header says "מגדל". Containment over normalised letters catches that;
+ * requiring equality would count one policy twice and cry overlap at a
+ * customer who holds exactly one.
+ */
+function sameCompany(a: string | null, b: string | null): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}]+/gu, "");
+  if (!a || !b) return false;
+  const na = norm(a);
+  const nb = norm(b);
+  if (na.length < 2 || nb.length < 2) return false;
+  return na.includes(nb) || nb.includes(na);
+}
+
+/**
+ * Null until there are at least two insurance positions — one is not a
+ * picture. Positions come from decoded statements AND from the registry
+ * upload; a holding whose company already has a decoded service in the same
+ * family is dropped (the decoded one knows strictly more).
+ */
+export function insuranceOverview(
+  services: DashboardService[],
+  holdings: PolicyHolding[] = [],
+): InsuranceOverview | null {
   const insurance = services.filter((s): s is DashboardService & { category: string } =>
     (INSURANCE_FAMILIES as readonly string[]).includes(s.category ?? ""),
   );
-  if (insurance.length < 2) return null;
+  const activeHoldings = holdings.filter(
+    (h) => h.status !== "inactive" && (INSURANCE_FAMILIES as readonly string[]).includes(h.family),
+  );
 
-  const families = INSURANCE_FAMILIES.map((family) => ({
-    family,
-    services: insurance.filter((s) => s.category === family),
-  }))
-    .filter((f) => f.services.length > 0)
-    .map((f) => ({ ...f, overlap: f.family !== "insurance" && f.services.length > 1 }));
+  const families = INSURANCE_FAMILIES.map((family) => {
+    const decoded = insurance.filter((s) => s.category === family);
+    const held = activeHoldings.filter(
+      (h) => h.family === family && !decoded.some((s) => sameCompany(s.providerName, h.company)),
+    );
+    return { family, services: decoded, holdings: held };
+  })
+    .filter((f) => f.services.length + f.holdings.length > 0)
+    .map((f) => {
+      /* Overlap counts distinct COMPANIES, not rows: a registry can list two
+         products at one insurer, and that is one relationship, not double
+         coverage. */
+      const companies = new Set(
+        [...f.services.map((s) => s.providerName), ...f.holdings.map((h) => h.company)]
+          .filter((c): c is string => !!c)
+          .map((c) => c.toLowerCase().replace(/[^\p{L}]+/gu, "")),
+      );
+      return { ...f, overlap: f.family !== "insurance" && companies.size > 1 };
+    });
+
+  const serviceCount = families.reduce((n, f) => n + f.services.length + f.holdings.length, 0);
+  if (serviceCount < 2) return null;
 
   return {
     families,
-    serviceCount: insurance.length,
+    serviceCount,
     overlapCount: families.filter((f) => f.overlap).length,
   };
 }

@@ -387,3 +387,39 @@ export const utilityPlaybooks = pgTable(
   },
   (t) => [uniqueIndex("utility_playbooks_key_idx").on(t.country, t.region, t.utility)],
 );
+
+/**
+ * One row per policy the customer holds, as listed by an official registry
+ * export (Israel's Har haBituach; other countries' equivalents later). This
+ * is what lets the portfolio show "everything you hold" rather than
+ * "everything you uploaded": the registry lists every policy at every
+ * company, so overlap detection runs on the full picture and each holding
+ * without a decoded statement becomes a visible gap to fill.
+ *
+ * Deliberately PLAIN columns, like invoices.provider_name: a company name
+ * and a product family linked to a customer are personal data but carry no
+ * amounts, no coverage detail and nothing medical — the registry itself has
+ * none of that. Full detail only ever arrives via a decoded statement,
+ * encrypted as always. Rows die with their source upload (delete-bill) and
+ * with the customer.
+ */
+export const policyHoldings = pgTable(
+  "policy_holdings",
+  {
+    id: id(),
+    customerId: text("customer_id").notNull().references(() => customers.id),
+    /** The registry upload this row came from — deleting that deletes these. */
+    invoiceId: text("invoice_id").notNull().references(() => invoices.id),
+    /** pension | health_insurance | car_insurance | … (statementMarketKey). */
+    family: text("family").notNull(),
+    /** Insurer / fund name as printed. Public company names. */
+    company: text("company").notNull(),
+    productName: text("product_name"),
+    /** active | inactive | unknown — as printed, normalised. */
+    status: text("status").notNull().default("unknown"),
+    country: text("country"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("policy_holdings_customer_idx").on(t.customerId)],
+);

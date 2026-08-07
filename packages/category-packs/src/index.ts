@@ -19,6 +19,7 @@ export { broadbandPack, BroadbandFieldsSchema, type BroadbandFields } from "./pa
 export { mobilePack, MobileFieldsSchema, parseGb, formatDataSize, type MobileFields } from "./packs/mobile/index.js";
 export { utilityPack, UtilityFieldsSchema, type UtilityFields } from "./packs/utility/index.js";
 export { statementPack, statementMarketKey, StatementFieldsSchema, type StatementFields } from "./packs/statement/index.js";
+export { registryPack, registryHoldingFamily, RegistryFieldsSchema, type RegistryFields, type RegistryHolding } from "./packs/registry/index.js";
 export {
   UtilityPlaybookSchema,
   PlaybookLeverSchema,

@@ -3,6 +3,7 @@ import {
   getPack,
   lookupProviderChat,
   playbookPack,
+  registryHoldingFamily,
   statementMarketKey,
   withPlaybookHints,
   type PlaybookRecord,
@@ -207,7 +208,9 @@ export async function runBillPipeline(args: {
             )
           : extraction.category;
     let playbook: PlaybookRecord | null = null;
-    if (extraction.common.country) {
+    // A registry is a list, not a market: there is no tariff structure to
+    // research and no supplier question to answer, so no playbook.
+    if (extraction.common.country && extraction.category !== "registry") {
       progress("market");
       const lookup = await getOrResearchPlaybook({
         country: extraction.common.country,
@@ -283,7 +286,10 @@ export async function runBillPipeline(args: {
     // advice in the launch market, so no offer search runs at all.
     progress("researching");
     const fields = (extraction.category_fields as Record<string, unknown>)[pack.id];
-    const offers = pack.id === "statement" ? [] : await gatherOffers(pack.id, fields, extraction.common);
+    const offers =
+      pack.id === "statement" || pack.id === "registry"
+        ? []
+        : await gatherOffers(pack.id, fields, extraction.common);
     const gotchaFacts = computeGotchaFacts(pack, extraction);
 
     progress("decoding");
@@ -367,6 +373,36 @@ export async function runBillPipeline(args: {
       .update(schema.invoices)
       .set({ status: "delivered", summaryTokenId: tokenRow!.id })
       .where(eq(schema.invoices.id, invoiceId));
+
+    /**
+     * A registry upload replaces the customer's holdings with the fresh
+     * picture: the export is a complete list by definition, so keeping rows
+     * from an older export would resurrect policies the registry no longer
+     * shows. Best-effort — the table arrives with migration 0009, and a
+     * portfolio nicety must never fail the analysis that produced it.
+     */
+    if (extraction.category === "registry") {
+      try {
+        const holdings = ((extraction.category_fields as Record<string, unknown>).registry as {
+          holdings: Array<{ company: string | null; productType: string | null; productName: string | null; status: string | null }>;
+        } | null)?.holdings ?? [];
+        const rows = holdings
+          .filter((h) => h.company)
+          .map((h) => ({
+            customerId,
+            invoiceId: invoiceId!,
+            family: registryHoldingFamily(h),
+            company: h.company!,
+            productName: h.productName,
+            status: h.status === "active" || h.status === "inactive" ? h.status : "unknown",
+            country: extraction.common.country,
+          }));
+        await database.delete(schema.policyHoldings).where(eq(schema.policyHoldings.customerId, customerId));
+        if (rows.length > 0) await database.insert(schema.policyHoldings).values(rows);
+      } catch (err) {
+        console.warn("[pipeline] holdings write failed (migration 0009 applied?):", err instanceof Error ? err.message.slice(0, 120) : "");
+      }
+    }
 
     // Feed this bill's market vocabulary back into the playbook so the next
     // bill of the same kind is decoded better. Labels only, digits stripped,

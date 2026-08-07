@@ -49,6 +49,7 @@ describe("mergedExtractionSchema", () => {
         broadband: null,
         utility: null,
         statement: null,
+        registry: null,
         mobile: {
           planName: "Fusión",
           baseFee: "45,00",
@@ -79,7 +80,7 @@ describe("mergedExtractionSchema", () => {
       // without market knowledge is a guess (the playbook supplies them); for
       // `statement` it is stricter still — explanation only, because in the
       // launch market recommending a product move is licensed advice.
-      if (pack.id === "utility" || pack.id === "statement") {
+      if (pack.id === "utility" || pack.id === "statement" || pack.id === "registry") {
         expect(pack.savingsLevers).toEqual([]);
         continue;
       }

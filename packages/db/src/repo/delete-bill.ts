@@ -91,6 +91,14 @@ export async function deleteBill(
     await tx.delete(schema.decodes).where(eq(schema.decodes.invoiceId, invoiceId));
     await tx.delete(schema.extractions).where(eq(schema.extractions.invoiceId, invoiceId));
     await tx.delete(schema.mediaObjects).where(eq(schema.mediaObjects.invoiceId, invoiceId));
+    // A registry upload's holdings die with it — they are its content, and
+    // keeping them would keep the list of everything the person holds after
+    // they deleted the document that said so. Fail-soft pre-migration-0009.
+    try {
+      await tx.delete(schema.policyHoldings).where(eq(schema.policyHoldings.invoiceId, invoiceId));
+    } catch {
+      /* table not created yet */
+    }
 
     /* Links are revoked rather than deleted. A revoked row is what lets an old
        link answer "this was deleted" instead of "no such bill", and the hash it

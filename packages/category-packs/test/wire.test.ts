@@ -47,6 +47,7 @@ describe("wire schema", () => {
         broadband: null,
         utility: null,
         statement: null,
+        registry: null,
         mobile: {
           planName: "Plan M",
           baseFee: "45,00",
@@ -103,7 +104,7 @@ describe("wire schema", () => {
         issueDate: "", dueDate: "", totalAmount: "10,00", pastDueAmount: "", currency: "EUR", country: "ES", region: "",
         paymentMethod: "", printedNextSteps: [], printedDiscounts: [], lineItems: [], billLanguage: "es",
       },
-      category_fields: { energy: parsed, broadband: null, mobile: null, utility: null, statement: null },
+      category_fields: { energy: parsed, broadband: null, mobile: null, utility: null, statement: null, registry: null },
       field_confidence: {},
       pages_used: [1],
     });

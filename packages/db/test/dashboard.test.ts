@@ -266,3 +266,49 @@ describe("insuranceOverview", () => {
     expect(insuranceOverview([svc(), svc({ key: "x|energy|IL", category: "energy" })])).toBeNull();
   });
 });
+
+describe("insuranceOverview with registry holdings", () => {
+  const holding = (over: Partial<import("../src/repo/dashboard.js").PolicyHolding> = {}) => ({
+    id: Math.random().toString(36).slice(2),
+    invoiceId: "reg1",
+    family: "health_insurance",
+    company: "כלל ביטוח בע\"מ",
+    productName: null,
+    status: "active",
+    country: "IL",
+    ...over,
+  });
+  const healthSvc = (name: string) =>
+    svc({ key: `${name}|health_insurance|IL`, providerName: name, category: "health_insurance" });
+
+  it("a registry alone is enough for a picture — no statements required", () => {
+    const overview = insuranceOverview([], [holding({ company: "הראל" }), holding({ company: "כלל" })]);
+    expect(overview).not.toBeNull();
+    expect(overview!.serviceCount).toBe(2);
+    // Two active health policies at two companies → the flag, from the
+    // registry alone. This is the whole point of the registry upload.
+    expect(overview!.overlapCount).toBe(1);
+  });
+
+  it("drops a holding whose company already has a decoded statement in that family", () => {
+    // The registry prints the full legal name; the statement says "כלל".
+    const overview = insuranceOverview([healthSvc("כלל")], [holding(), holding({ company: "הראל" })]);
+    const fam = overview!.families[0]!;
+    expect(fam.services).toHaveLength(1);
+    expect(fam.holdings.map((h) => h.company)).toEqual(["הראל"]);
+    // Still an overlap: two distinct companies, one decoded + one held.
+    expect(fam.overlap).toBe(true);
+  });
+
+  it("two products at ONE company are a relationship, not double coverage", () => {
+    const overview = insuranceOverview(
+      [],
+      [holding({ productName: "מגן זהב" }), holding({ productName: "שיניים" })],
+    );
+    expect(overview!.families[0]!.overlap).toBe(false);
+  });
+
+  it("inactive holdings never count", () => {
+    expect(insuranceOverview([], [holding(), holding({ status: "inactive", company: "הראל" })])).toBeNull();
+  });
+});

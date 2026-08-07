@@ -8,7 +8,7 @@
  * their market intelligence from researched per-country playbooks rather
  * than hand-written code.
  */
-export const CATEGORIES = ["energy", "broadband", "mobile", "utility", "statement"] as const;
+export const CATEGORIES = ["energy", "broadband", "mobile", "utility", "statement", "registry"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 export type InvoiceStatus =

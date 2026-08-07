@@ -105,3 +105,43 @@ describe("statementMarketKey", () => {
     expect(statementMarketKey(null)).toBe("insurance");
   });
 });
+
+describe("registry pack", async () => {
+  const { registryPack, registryHoldingFamily, RegistryFieldsSchema } = await import("../src/index.js");
+
+  const fields = {
+    source: "har_habituach",
+    asOfDate: "2026-08-01",
+    holdings: [
+      { company: "הראל", productType: "health", productName: "מגן זהב", status: "active", premiumAmount: null, premiumFrequency: null },
+      { company: "כלל", productType: "health", productName: null, status: "active", premiumAmount: null, premiumFrequency: null },
+      { company: "מגדל מקפת", productType: "pension_fund", productName: null, status: "active", premiumAmount: null, premiumFrequency: null },
+      { company: "מנורה", productType: "car", productName: null, status: "inactive", premiumAmount: null, premiumFrequency: null },
+    ],
+  };
+
+  it("parses a registry fixture and maps holdings to families", () => {
+    const parsed = RegistryFieldsSchema.parse(fields);
+    expect(parsed.holdings).toHaveLength(4);
+    expect(registryHoldingFamily(parsed.holdings[0]!)).toBe("health_insurance");
+    expect(registryHoldingFamily(parsed.holdings[2]!)).toBe("pension");
+  });
+
+  it("detects same-family overlap among ACTIVE holdings only", () => {
+    const detect = registryPack.decodeHints.gotchaChecks.find((g) => g.id === "registry_overlaps")!.detect!;
+    // Two active health policies → overlap.
+    expect(detect(RegistryFieldsSchema.parse(fields), {} as never)).toBe(true);
+    // Drop one health policy: remaining actives are all distinct families,
+    // and the inactive car policy must not create an overlap.
+    const single = { ...fields, holdings: fields.holdings.filter((h) => h.company !== "כלל") };
+    expect(detect(RegistryFieldsSchema.parse(single), {} as never)).toBe(false);
+  });
+
+  it("is explanation-only like statements", () => {
+    expect(registryPack.savingsLevers).toEqual([]);
+    expect(registryPack.comparisonSource).toBeUndefined();
+    const rule = registryPack.decodeHints.gotchaChecks.find((g) => g.id === "explanation_only");
+    expect(rule).toBeDefined();
+    expect(rule!.detect).toBeUndefined();
+  });
+});
