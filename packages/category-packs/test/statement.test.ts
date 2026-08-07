@@ -9,6 +9,7 @@ import {
 /** A realistic Israeli pension-fund quarterly statement, reduced to fields. */
 const pensionFields: StatementFields = {
   kind: "pension_fund",
+  docType: "statement",
   productName: "מסלול כללי",
   investmentTrack: "מסלול לבני 50 ומטה",
   premiumAmount: null,
@@ -16,6 +17,11 @@ const pensionFields: StatementFields = {
   coverages: [],
   deductible: null,
   renewalDate: null,
+  exclusions: [],
+  hasPersonalExclusions: null,
+  waitingPeriods: [],
+  cancellationTerms: null,
+  premiumEscalation: null,
   promoEndDate: "2029-10-31",
   maritalStatus: "רווק",
   employeeContribution: "1.740,00",
@@ -143,5 +149,79 @@ describe("registry pack", async () => {
     const rule = registryPack.decodeHints.gotchaChecks.find((g) => g.id === "explanation_only");
     expect(rule).toBeDefined();
     expect(rule!.detect).toBeUndefined();
+  });
+});
+
+describe("a fresh insurance contract", () => {
+  /** A newly signed private health policy, reduced to fields. */
+  const contract: StatementFields = {
+    ...pensionFields,
+    kind: "health",
+    docType: "contract",
+    productName: "בריאות פרטית פלוס",
+    premiumAmount: "127,00",
+    premiumFrequency: "monthly",
+    coverages: [
+      { label: "ניתוחים בישראל", amountOrLimit: "מלא" },
+      { label: "תרופות מחוץ לסל", amountOrLimit: "3.000.000" },
+    ],
+    exclusions: ["ניתוחים קוסמטיים", "ספורט אתגרי"],
+    hasPersonalExclusions: true,
+    waitingPeriods: [{ coverageLabel: "ניתוחים", period: "90 ימים" }],
+    cancellationTerms: "ביטול בהודעה של 3 ימי עסקים, החזר יחסי",
+    premiumEscalation: "הפרמיה עולה במדרגות גיל 41, 51, 61",
+    // Not a pension doc: none of these appear.
+    employeeContribution: null,
+    employerContribution: null,
+    severanceContribution: null,
+    feeOnDepositsPercent: null,
+    feeOnAccrualPercent: null,
+    feesChargedAmount: null,
+    insuranceCostAmount: null,
+    disabilityCostAmount: null,
+    survivorsCostAmount: null,
+    accrualTotal: null,
+    returnPercent: null,
+    projectedMonthlyPension: null,
+    disabilityCoverAmount: null,
+    survivorsCoverAmount: null,
+    hasBeneficiariesListed: null,
+    guaranteedAnnuityFactor: null,
+    promoEndDate: null,
+    maritalStatus: null,
+  };
+
+  it("fires the contract facts and stays silent on the pension ones", () => {
+    const facts = Object.fromEntries(
+      statementPack.decodeHints.gotchaChecks
+        .filter((g) => g.detect)
+        .map((g) => [g.id, g.detect!(contract, {} as never)]),
+    );
+    expect(facts.fresh_contract).toBe(true);
+    expect(facts.waiting_periods).toBe(true);
+    expect(facts.exclusions_exist).toBe(true);
+    expect(facts.personal_exclusions).toBe(true);
+    expect(facts.premium_escalation).toBe(true);
+    // Pension-only facts stay undecided, so no pension prose leaks into a
+    // health contract's explanation.
+    expect(facts.fees_twice).toBeNull();
+    expect(facts.check_deposits).toBeNull();
+  });
+
+  it("a periodic statement does not get the contract treatment", () => {
+    const facts = Object.fromEntries(
+      statementPack.decodeHints.gotchaChecks
+        .filter((g) => g.detect)
+        .map((g) => [g.id, g.detect!(pensionFields, {} as never)]),
+    );
+    expect(facts.fresh_contract).toBeNull();
+    expect(facts.personal_exclusions).toBeNull();
+  });
+
+  it("a personal medical exclusion is a boolean, never text", () => {
+    // The schema's only home for personal exclusions is the boolean; the
+    // condition behind it cannot be stored anywhere.
+    expect(typeof contract.hasPersonalExclusions).toBe("boolean");
+    expect(Object.keys(StatementFieldsSchema.shape)).not.toContain("personalExclusions");
   });
 });

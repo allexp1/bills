@@ -13,7 +13,14 @@ import { isInFlightStatus } from "@bills/shared";
  * traffic: 50 bills a day is ~100 Opus calls per customer.
  */
 export const MAX_BILLS_PER_DAY = Number(process.env.MAX_BILLS_PER_DAY ?? 50);
-export const MAX_PAGES_PER_BILL = Number(process.env.MAX_PAGES_PER_BILL ?? 10);
+/**
+ * Raised from 10 to 30 when insurance CONTRACTS became a supported document:
+ * a bill fits in 10 pages, a policy booklet does not, and truncating one
+ * silently drops the exclusions section — the part the customer most needs
+ * read. The cost ceiling this guards is still bounded by MAX_BILLS_PER_DAY;
+ * the worst-case tokens per customer-day tripled, knowingly.
+ */
+export const MAX_PAGES_PER_BILL = Number(process.env.MAX_PAGES_PER_BILL ?? 30);
 /**
  * A failed analysis is our problem, not the customer's — it must not burn
  * their daily allowance. Attempts are still bounded (a failure costs us a

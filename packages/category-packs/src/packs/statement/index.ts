@@ -32,6 +32,14 @@ export const StatementFieldsSchema = z.object({
    * other. A string rather than an enum to keep the wire-schema union budget.
    */
   kind: z.string().nullable(),
+  /**
+   * "statement" for a periodic report on an existing product, "contract" for
+   * the policy document itself (the terms someone just signed, or the full
+   * policy booklet). Same product family, opposite moment: a statement asks
+   * "what am I paying", a fresh contract asks "what did I just agree to, and
+   * what can I still change". The explanation pivots on this.
+   */
+  docType: z.string().nullable(),
   /** Product/plan name exactly as printed ("מסלול כללי", "מגן זהב"). */
   productName: z.string().nullable(),
   /** Investment track for savings products, as printed. */
@@ -55,6 +63,32 @@ export const StatementFieldsSchema = z.object({
   ),
   deductible: z.string().nullable(),
   renewalDate: z.string().nullable(),
+  /**
+   * GENERAL exclusions as printed in the policy terms — standard market
+   * wording that applies to every buyer ("cosmetic surgery", "extreme
+   * sports", "war"). Labels only, capped: the point is "know these exist and
+   * where", not a transcript of the booklet.
+   */
+  exclusions: z.array(z.string()),
+  /**
+   * True when the policy carries PERSONAL exclusions or loadings — terms
+   * added for this specific person, typically for a pre-existing condition.
+   * The boolean is ALL that is captured, by design: the condition itself is
+   * medical data and the schema must have nowhere to hold it. The
+   * explanation tells the customer that section exists and to read it.
+   */
+  hasPersonalExclusions: z.boolean().nullable(),
+  /** Waiting periods before cover starts (תקופת אכשרה), per coverage. */
+  waitingPeriods: z.array(
+    z.object({
+      coverageLabel: z.string().nullable(),
+      period: z.string().nullable(),
+    }),
+  ),
+  /** Cancellation terms as printed: notice period, refund rule, exit fees. */
+  cancellationTerms: z.string().nullable(),
+  /** How the premium moves over time, as printed: age steps, indexation. */
+  premiumEscalation: z.string().nullable(),
   /**
    * When a printed fee/premium discount ENDS (Israeli pension statements
    * print תום תקופת ההנחה, after which the management-fee rate changes).
@@ -168,6 +202,18 @@ export const statementPack: CategoryPack<StatementFields> = {
     disabilityCostAmount: "The disability (נכות) cover's own cost line, when the statement prints the split.",
     survivorsCostAmount: "The survivors (שארים) cover's own cost line, when the statement prints the split.",
     maritalStatus: "Marital status exactly as printed on the statement (רווק, נשוי…), null when not printed.",
+    docType:
+      '"contract" when this is the policy document itself — terms and conditions, a signed proposal, the policy booklet (תנאי הפוליסה, הצעת ביטוח). "statement" when it is a periodic report on an existing product (דוח שנתי, דוח רבעוני). The page count is a clue: contracts are long, statements are short.',
+    exclusions:
+      "GENERAL exclusions from the policy terms, as short labels (up to ~15 of the most significant). Do NOT copy personal medical exclusions here — those are covered by hasPersonalExclusions.",
+    hasPersonalExclusions:
+      "true only if the document shows exclusions or premium loadings added for THIS person specifically (חריג אישי, personal endorsement). NEVER transcribe the condition or reason — the boolean is all that is captured.",
+    waitingPeriods:
+      "Waiting periods (תקופת אכשרה) before each cover pays, as printed. On Israeli health policies these are the most commonly misunderstood term on the whole document.",
+    cancellationTerms:
+      "What the policy says about cancelling: notice, refunds, fees. Short summary of the printed terms, not the whole clause.",
+    premiumEscalation:
+      "How the premium changes over time as printed: age-band steps, linkage to an index, 'premium increases at 40/50/60'. Null when the premium is flat or nothing is printed.",
   },
   decodeHints: {
     lineItemGlossary:
@@ -216,6 +262,36 @@ export const statementPack: CategoryPack<StatementFields> = {
         promptFragment:
           "Contribution amounts are printed. Remind the customer to check them against their payslips — missing employer deposits are a known, common problem, and the fund and the regulator both handle such complaints.",
         detect: (f) => (f.employerContribution !== null ? true : null),
+      },
+      {
+        id: "fresh_contract",
+        promptFragment:
+          "This is the POLICY CONTRACT itself, not a periodic report — likely just signed. Lead with what was bought in one plain paragraph, then what it does NOT cover, then what can still be changed. Cancellation rights come early, not last: a policyholder can cancel, and if they just signed, this is the one moment reconsidering costs nothing. Explain the cancellation terms printed in the document itself.",
+        detect: (f) => (f.docType === "contract" ? true : null),
+      },
+      {
+        id: "waiting_periods",
+        promptFragment:
+          "Waiting periods are printed. Say plainly, per cover, from when protection actually starts — people discover a waiting period at claim time, which is the worst possible moment. If they are switching insurers, note that cancelling the old policy before the new waiting periods end leaves a gap.",
+        detect: (f) => (f.waitingPeriods.length > 0 ? true : null),
+      },
+      {
+        id: "exclusions_exist",
+        promptFragment:
+          "General exclusions are printed. Name the significant ones in plain words — not as legal text — so the customer knows what this policy will refuse before they ever claim.",
+        detect: (f) => (f.exclusions.length > 0 ? true : null),
+      },
+      {
+        id: "personal_exclusions",
+        promptFragment:
+          "The policy carries PERSONAL exclusions or loadings added for this customer specifically. Do not restate their content (it is not captured); say clearly that this section exists, that it narrows their cover in ways the standard policy text does not show, and that it is the one part of the document they must read word for word.",
+        detect: (f) => (f.hasPersonalExclusions === true ? true : null),
+      },
+      {
+        id: "premium_escalation",
+        promptFragment:
+          "The premium changes over time as printed. Translate the escalation into plain words — what they pay now versus at the next steps — so the price they compared today is not mistaken for the price of the policy.",
+        detect: (f) => (f.premiumEscalation !== null ? true : null),
       },
     ],
   },
