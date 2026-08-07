@@ -1,4 +1,11 @@
-import { encodeServiceKey, type Dashboard, type DashboardAlert, type DashboardService } from "@bills/db/repo/dashboard";
+import {
+  encodeServiceKey,
+  insuranceOverview,
+  type Dashboard,
+  type DashboardAlert,
+  type DashboardService,
+  type InsuranceFamily,
+} from "@bills/db/repo/dashboard";
 import { Money, NeuBadge, NeuButton, NeuCard } from "../../components/ui/neu.js";
 import { BillList } from "./bill-list.js";
 import { dateLabel, money, periodLabel } from "./format.js";
@@ -28,6 +35,37 @@ const CATEGORY_LABEL: Record<string, string> = {
   insurance: "Insurance",
   utility: "Utilities",
   statement: "Insurance & pension",
+  pension: "Pension",
+  health_insurance: "Health insurance",
+  car_insurance: "Car insurance",
+  home_insurance: "Home insurance",
+  life_insurance: "Life insurance",
+  travel_insurance: "Travel insurance",
+};
+
+/**
+ * What holding the same family at two companies MEANS, per family — because
+ * it is not the same fact everywhere. Health, car, home and travel are
+ * indemnity: they reimburse a loss, and two policies generally cannot both
+ * pay for the same event, so the second premium often buys nothing. Life
+ * insurance is NOT indemnity — every policy pays — so overlap there is a
+ * question of intent, not waste. Pension overlap means paying two sets of
+ * management fees on one salary. Explanation only, never "cancel X".
+ */
+const OVERLAP_NOTE: Record<InsuranceFamily, string> = {
+  health_insurance:
+    "Health policies at different companies usually cannot both pay for the same treatment. Worth putting them side by side and checking what the second one adds.",
+  car_insurance:
+    "Two car policies generally cannot both pay for the same damage. Unless they cover different vehicles, one of them may be buying nothing.",
+  home_insurance:
+    "Two home policies generally cannot both pay for the same damage. Unless they cover different homes, check what the second adds.",
+  travel_insurance:
+    "Travel policies overlap easily, especially with cover already included in credit cards. Two rarely pay more than one.",
+  life_insurance:
+    "Life policies are different: each one pays. Two policies is a choice, not a mistake — just check the total is the cover you mean to pay for.",
+  pension:
+    "Each fund charges its own management fees. Whether to consolidate is a decision for a licensed pension advisor, but knowing you are paying twice is the first step.",
+  insurance: "",
 };
 
 /** A change, as a pill. Down is good on a bill, so down is the savings colour. */
@@ -208,6 +246,63 @@ function ServiceRow({
   );
 }
 
+/**
+ * The consolidated insurance picture, shown once two or more insurance or
+ * pension services exist. Each statement shows one company's slice; nobody
+ * mails you the whole. Families with two companies get the overlap note —
+ * worded per family, because duplicate health cover is waste while duplicate
+ * life cover is a choice.
+ */
+function InsuranceOverviewSection({ services }: { services: DashboardService[] }) {
+  const overview = insuranceOverview(services);
+  if (!overview) return null;
+
+  const allIsrael = overview.families.every((f) => f.services.every((s) => s.country === "IL"));
+
+  return (
+    <section className="mt-12">
+      <h2 className="text-lg font-bold text-ink">Your insurance, side by side</h2>
+      <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
+        {overview.serviceCount} policies and savings products across companies. Each statement shows
+        one company&apos;s slice; this is the whole.
+      </p>
+      <NeuCard className="mt-4 divide-y divide-hairline p-0">
+        {overview.families.map((f) => (
+          <div key={f.family} className="px-5 py-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="text-base font-bold text-ink">
+                {CATEGORY_LABEL[f.family] ?? f.family}
+              </p>
+              {f.overlap ? (
+                <NeuBadge tone={f.family === "life_insurance" ? "neutral" : "warning"}>
+                  {f.services.length} companies
+                </NeuBadge>
+              ) : null}
+            </div>
+            <p className="mt-1 text-sm text-muted">
+              {f.services.map((s, i) => (
+                <span key={s.key}>
+                  {i > 0 ? " · " : ""}
+                  <bdi>{s.providerName ?? "Unnamed provider"}</bdi>
+                </span>
+              ))}
+            </p>
+            {f.overlap && OVERLAP_NOTE[f.family] ? (
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-dim">{OVERLAP_NOTE[f.family]}</p>
+            ) : null}
+          </div>
+        ))}
+        {allIsrael ? (
+          <p className="px-5 py-3 text-xs leading-relaxed text-dim">
+            Israel&apos;s official registry, Har haBituach (harb.cma.gov.il), lists every policy you
+            hold at every company — the way to check nothing is missing from this picture.
+          </p>
+        ) : null}
+      </NeuCard>
+    </section>
+  );
+}
+
 export function DashboardView({ data, locale = "en" }: { data: Dashboard; locale?: string }) {
   const { services, alerts, totals, charts } = data;
 
@@ -319,6 +414,8 @@ export function DashboardView({ data, locale = "en" }: { data: Dashboard; locale
           </NeuCard>
         </section>
       )}
+
+      <InsuranceOverviewSection services={services} />
 
       {charts.map((chart) => (
         <section className="mt-12" key={chart.currency}>

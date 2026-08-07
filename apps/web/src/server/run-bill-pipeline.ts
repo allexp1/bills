@@ -233,7 +233,13 @@ export async function runBillPipeline(args: {
       .update(schema.invoices)
       .set({
         status: "decoding",
-        category: extraction.category,
+        // Statements store their FAMILY (pension, health_insurance,
+        // car_insurance…) rather than the generic "statement". The dashboard
+        // can only consolidate "you hold health policies at two companies —
+        // check for duplicate coverage" if the row itself says which family
+        // this is; the precise kind lives in the encrypted extraction, which
+        // the dashboard deliberately never opens.
+        category: extraction.category === "statement" ? marketKey : extraction.category,
         currency: extraction.common.currency,
         country: extraction.common.country,
         billingPeriodStart: extraction.common.billingPeriodStart,

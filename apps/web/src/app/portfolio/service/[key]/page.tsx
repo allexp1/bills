@@ -45,6 +45,12 @@ const CATEGORY_LABEL: Record<string, string> = {
   insurance: "Insurance",
   utility: "Utilities",
   statement: "Insurance & pension",
+  pension: "Pension",
+  health_insurance: "Health insurance",
+  car_insurance: "Car insurance",
+  home_insurance: "Home insurance",
+  life_insurance: "Life insurance",
+  travel_insurance: "Travel insurance",
 };
 
 /** Highest and lowest bill, with the period each covers. */

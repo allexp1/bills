@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAlerts, buildCharts, buildTotals, type DashboardService } from "../src/repo/dashboard.js";
+import { buildAlerts, buildCharts, buildTotals, insuranceOverview, type DashboardService } from "../src/repo/dashboard.js";
 
 function svc(over: Partial<DashboardService> = {}): DashboardService {
   return {
@@ -225,5 +225,44 @@ describe("service keys in URLs", () => {
     const { encodeServiceKey } = await import("../src/repo/dashboard.js");
     expect(encodeServiceKey("Pelephone|mobile|IL")).toBe(encodeServiceKey("Pelephone|mobile|IL"));
     expect(encodeServiceKey("Pelephone|mobile|IL")).not.toBe(encodeServiceKey("Pelephone|internet|IL"));
+  });
+});
+
+describe("insuranceOverview", () => {
+  const health = (name: string) =>
+    svc({ key: `${name}|health_insurance|IL`, providerName: name, category: "health_insurance" });
+
+  it("is null until there are at least two insurance services", () => {
+    expect(insuranceOverview([svc(), health("Harel")])).toBeNull();
+    expect(insuranceOverview([])).toBeNull();
+  });
+
+  it("flags two companies in one indemnity family as overlap", () => {
+    const overview = insuranceOverview([health("Harel"), health("Clal"), svc()]);
+    expect(overview!.serviceCount).toBe(2);
+    expect(overview!.overlapCount).toBe(1);
+    expect(overview!.families).toHaveLength(1);
+    expect(overview!.families[0]!.overlap).toBe(true);
+  });
+
+  it("two different families are a picture, not an overlap", () => {
+    const overview = insuranceOverview([
+      health("Harel"),
+      svc({ key: "Migdal|pension|IL", providerName: "Migdal", category: "pension" }),
+    ]);
+    expect(overview!.serviceCount).toBe(2);
+    expect(overview!.overlapCount).toBe(0);
+  });
+
+  it("never flags the unknown-kind fallback: two unknowns are not a known overlap", () => {
+    const unknown = (name: string) =>
+      svc({ key: `${name}|insurance|IL`, providerName: name, category: "insurance" });
+    const overview = insuranceOverview([unknown("A"), unknown("B")]);
+    expect(overview!.overlapCount).toBe(0);
+    expect(overview!.families[0]!.overlap).toBe(false);
+  });
+
+  it("ignores everything that is not insurance", () => {
+    expect(insuranceOverview([svc(), svc({ key: "x|energy|IL", category: "energy" })])).toBeNull();
   });
 });

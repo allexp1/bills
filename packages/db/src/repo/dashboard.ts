@@ -463,3 +463,68 @@ export function buildAlerts(services: DashboardService[], today: Date): Dashboar
   const rank = { jump: 0, outlier: 1, promo_ending: 2, contract_ending: 3 } as const;
   return alerts.sort((a, b) => rank[a.kind] - rank[b.kind]);
 }
+
+/**
+ * The consolidated insurance picture across companies.
+ *
+ * People hold policies at several insurers and no single statement shows the
+ * whole; each company reports its own slice. Once two or more insurance or
+ * pension services exist, the dashboard can put them side by side — and flag
+ * the one pattern that quietly wastes the most money: two policies of the
+ * SAME family at different companies. Indemnity insurance generally cannot
+ * pay twice for the same event, so the second policy often buys nothing.
+ *
+ * Pure function over the services the dashboard already grouped, so the
+ * overview can never disagree with the cards above it. EXPLANATION ONLY, like
+ * everything else about statements: it says what exists and what overlaps,
+ * never which policy to keep.
+ */
+export const INSURANCE_FAMILIES = [
+  "pension",
+  "health_insurance",
+  "car_insurance",
+  "home_insurance",
+  "life_insurance",
+  "travel_insurance",
+  "insurance",
+] as const;
+export type InsuranceFamily = (typeof INSURANCE_FAMILIES)[number];
+
+export interface InsuranceFamilyOverview {
+  family: InsuranceFamily;
+  services: DashboardService[];
+  /**
+   * Two or more companies in one family. For indemnity families this is the
+   * duplicate-coverage (double insurance) signal; for pension it means fees
+   * are being paid to several funds at once. "insurance" (the unknown-kind
+   * fallback) never flags — two unknowns are not a known overlap.
+   */
+  overlap: boolean;
+}
+
+export interface InsuranceOverview {
+  families: InsuranceFamilyOverview[];
+  serviceCount: number;
+  overlapCount: number;
+}
+
+/** Null until there are at least two insurance services — one is not a picture. */
+export function insuranceOverview(services: DashboardService[]): InsuranceOverview | null {
+  const insurance = services.filter((s): s is DashboardService & { category: string } =>
+    (INSURANCE_FAMILIES as readonly string[]).includes(s.category ?? ""),
+  );
+  if (insurance.length < 2) return null;
+
+  const families = INSURANCE_FAMILIES.map((family) => ({
+    family,
+    services: insurance.filter((s) => s.category === family),
+  }))
+    .filter((f) => f.services.length > 0)
+    .map((f) => ({ ...f, overlap: f.family !== "insurance" && f.services.length > 1 }));
+
+  return {
+    families,
+    serviceCount: insurance.length,
+    overlapCount: families.filter((f) => f.overlap).length,
+  };
+}
