@@ -30,3 +30,4 @@ export {
   type PlaybookResearchResult,
   type PlaybookResearchFailure,
 } from "./playbook-research.js";
+export { isSpreadsheet, spreadsheetToText, xlsxToText, SPREADSHEET_MIME_TYPES } from "./xlsx-text.js";

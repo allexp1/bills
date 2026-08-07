@@ -26,7 +26,7 @@ const STEPS: Array<{ title: string; body: string }> = [
   },
   {
     title: "Download your list",
-    body: "You get an instant table of every insurance policy registered to you: company, type, status. Download it (the export button offers a file) or save the page as PDF.",
+    body: "You get an instant table of every insurance policy registered to you: company, type, status. Download it — the Excel export is best (it keeps every premium as data), and PDF works too.",
   },
   {
     title: "Upload it here",

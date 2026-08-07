@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MODEL, SPLIT_MODEL, anthropic, usageFrom, type LlmUsage } from "./client.js";
+import { isSpreadsheet, spreadsheetToText } from "./xlsx-text.js";
 import type { BillPage } from "./extract.js";
 
 /**
@@ -53,6 +54,10 @@ const NO_USAGE: LlmUsage = {
 const IMAGE_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 function contentBlockFor(page: BillPage) {
+  if (isSpreadsheet(page.mimeType)) {
+    return { type: "text" as const, text: `Spreadsheet content, one row per line:
+${spreadsheetToText(page.data, page.mimeType)}` };
+  }
   if (page.mimeType === "application/pdf") {
     return {
       type: "document" as const,

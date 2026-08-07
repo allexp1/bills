@@ -5,6 +5,7 @@ import {
   type MergedExtraction,
 } from "@bills/category-packs";
 import { MODEL, anthropic, usageFrom, type LlmUsage } from "./client.js";
+import { isSpreadsheet, spreadsheetToText } from "./xlsx-text.js";
 import { EXTRACTION_PROMPT_VERSION, extractionSystemPrompt } from "./prompts/extraction.js";
 
 export interface BillPage {
@@ -22,6 +23,11 @@ export interface ExtractionResult {
 const IMAGE_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 function contentBlockFor(page: BillPage) {
+  // Spreadsheets (Har haBituach exports Excel) go in as text, not pixels.
+  if (isSpreadsheet(page.mimeType)) {
+    return { type: "text" as const, text: `Spreadsheet content, one row per line:
+${spreadsheetToText(page.data, page.mimeType)}` };
+  }
   if (page.mimeType === "application/pdf") {
     return {
       type: "document" as const,

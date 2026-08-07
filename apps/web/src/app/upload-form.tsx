@@ -373,7 +373,7 @@ export function UploadForm({ endpoint, withSecret }: { endpoint: string; withSec
           type="file"
           name="pages"
           multiple
-          accept="image/*,application/pdf"
+          accept="image/*,application/pdf,.xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
           onChange={(e) => {
             setFileNames(Array.from(e.currentTarget.files ?? []).map((f) => f.name));
             setError(null);

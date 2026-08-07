@@ -3,6 +3,21 @@ import { gte } from "drizzle-orm";
 import { db, schema } from "@bills/db";
 import { resolveLocale, waHash, type SupportedLocale } from "@bills/shared";
 import { isOverloaded, type BillPage } from "@bills/llm";
+
+/**
+ * Browsers are unreliable about file.type — an .xlsx dragged from some mail
+ * clients arrives with an empty type — so the extension is the fallback.
+ * Spreadsheets matter here because Har haBituach, the Israeli insurance
+ * registry, exports Excel as its primary format.
+ */
+function mimeTypeFor(file: File): string {
+  if (file.type) return file.type;
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".pdf")) return "application/pdf";
+  if (name.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (name.endsWith(".csv")) return "text/csv";
+  return "image/jpeg";
+}
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { clerkEnabled } from "../../../lib/clerk-enabled.js";
 import { resolveCustomer } from "../../../server/auth/resolve-customer.js";
@@ -89,7 +104,7 @@ export async function POST(req: NextRequest) {
       if (total > MAX_TOTAL_BYTES) {
         return NextResponse.json({ error: "too_large", detail: "15 MB total maximum" }, { status: 413 });
       }
-      pages.push({ data, mimeType: file.type || (file.name.endsWith(".pdf") ? "application/pdf" : "image/jpeg") });
+      pages.push({ data, mimeType: mimeTypeFor(file) });
     }
 
     // Stream progress as NDJSON: one {stage} line per pipeline phase, then a
