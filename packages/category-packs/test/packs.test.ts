@@ -48,6 +48,7 @@ describe("mergedExtractionSchema", () => {
         energy: null,
         broadband: null,
         utility: null,
+        statement: null,
         mobile: {
           planName: "Fusión",
           baseFee: "45,00",
@@ -74,7 +75,11 @@ describe("mergedExtractionSchema", () => {
       // `utility` is the open category: it ships no levers on purpose,
       // because a lever without market knowledge is a guess. Its levers come
       // from a researched playbook, which knows whether switching is legal.
-      if (pack.id === "utility") {
+      // The open categories ship no levers on purpose. For `utility` a lever
+      // without market knowledge is a guess (the playbook supplies them); for
+      // `statement` it is stricter still — explanation only, because in the
+      // launch market recommending a product move is licensed advice.
+      if (pack.id === "utility" || pack.id === "statement") {
         expect(pack.savingsLevers).toEqual([]);
         continue;
       }

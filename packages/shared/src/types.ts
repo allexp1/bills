@@ -2,10 +2,13 @@
 
 /**
  * "utility" is the open category: any metered or subscription bill without a
- * bespoke pack (water, waste, council tax, insurance, gym). Its intelligence
- * comes from a researched per-country playbook rather than hand-written code.
+ * bespoke pack (water, waste, council tax, gym). "statement" is the second
+ * document family: insurance policies and pension/savings statements, which
+ * are not bills at all — no monthly total, different questions. Both draw
+ * their market intelligence from researched per-country playbooks rather
+ * than hand-written code.
  */
-export const CATEGORIES = ["energy", "broadband", "mobile", "utility"] as const;
+export const CATEGORIES = ["energy", "broadband", "mobile", "utility", "statement"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 export type InvoiceStatus =

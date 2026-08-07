@@ -44,6 +44,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   water: "Water",
   insurance: "Insurance",
   utility: "Utilities",
+  statement: "Insurance & pension",
 };
 
 /** Highest and lowest bill, with the period each covers. */

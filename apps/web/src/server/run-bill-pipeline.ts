@@ -3,6 +3,7 @@ import {
   getPack,
   lookupProviderChat,
   playbookPack,
+  statementMarketKey,
   withPlaybookHints,
   type PlaybookRecord,
 } from "@bills/category-packs";
@@ -198,7 +199,13 @@ export async function runBillPipeline(args: {
     const marketKey =
       extraction.category === "utility"
         ? ((extraction.category_fields as Record<string, Record<string, unknown> | null>).utility?.serviceType as string | null) ?? "utility"
-        : extraction.category;
+        : extraction.category === "statement"
+          ? // pension | health_insurance | car_insurance | … — pension products
+            // share one market, each insurance family gets its own.
+            statementMarketKey(
+              ((extraction.category_fields as Record<string, Record<string, unknown> | null>).statement?.kind as string | null) ?? null,
+            )
+          : extraction.category;
     let playbook: PlaybookRecord | null = null;
     if (extraction.common.country) {
       progress("market");
@@ -265,9 +272,12 @@ export async function runBillPipeline(args: {
     const priorSnapshots = await loadPriorSnapshots(customerId, invoiceId, extraction.common.providerName, pack.id);
 
     // Live market research (web search) merged with curated data — best-effort.
+    // NOT for statements: the insurance/pension product is explanation only,
+    // deliberately — "here is a cheaper fund" crosses into licensed financial
+    // advice in the launch market, so no offer search runs at all.
     progress("researching");
     const fields = (extraction.category_fields as Record<string, unknown>)[pack.id];
-    const offers = await gatherOffers(pack.id, fields, extraction.common);
+    const offers = pack.id === "statement" ? [] : await gatherOffers(pack.id, fields, extraction.common);
     const gotchaFacts = computeGotchaFacts(pack, extraction);
 
     progress("decoding");

@@ -6,8 +6,9 @@ import { energyPack } from "./packs/energy/index.js";
 import { broadbandPack } from "./packs/broadband/index.js";
 import { mobilePack } from "./packs/mobile/index.js";
 import { utilityPack } from "./packs/utility/index.js";
+import { statementPack } from "./packs/statement/index.js";
 
-const PACKS: CategoryPack<any>[] = [energyPack, broadbandPack, mobilePack, utilityPack];
+const PACKS: CategoryPack<any>[] = [energyPack, broadbandPack, mobilePack, utilityPack, statementPack];
 
 export function allPacks(): CategoryPack<any>[] {
   return PACKS;

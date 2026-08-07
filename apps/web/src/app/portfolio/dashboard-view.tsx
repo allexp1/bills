@@ -27,6 +27,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   water: "Water",
   insurance: "Insurance",
   utility: "Utilities",
+  statement: "Insurance & pension",
 };
 
 /** A change, as a pill. Down is good on a bill, so down is the savings colour. */

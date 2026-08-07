@@ -2,8 +2,24 @@
 
 Fixplo today decodes utility bills. This plan adds the second product:
 **decoding insurance and pension statements**, starting in Israel, in the
-customer's own language, with their rights attached. Later phases add
-comparison and switching.
+customer's own language, with their rights attached.
+
+> **Scope decision (7 Aug 2026): EXPLANATION ONLY.** No comparison, no
+> switching, no product recommendations — those phases stay in this document
+> as background but are explicitly not being built now. The product is: by
+> law everyone receives a periodic statement (monthly for policies, annual
+> plus quarterly for pension); they upload it — or, later, forward it by
+> email — and get a plain-language explanation of what they have, what it
+> costs, what it covers, and their rights. Everything in Part 2 (the legal
+> lines) applies with extra force: the decode never names a fund or insurer
+> to move to.
+>
+> **Email-forward intake** is the one new channel this scope adds: a
+> forward-to address (e.g. bills@fixplo.ai) feeding the same pipeline.
+> Needs an inbound-email provider (Postmark / SendGrid inbound parse /
+> Cloudflare Email Routing) plus DNS on the domain — provider choice is an
+> account/cost decision, then a webhook route that extracts attachments and
+> calls `runBillPipeline`.
 
 Why Israel first is not just "home market". Israel is unusually good for this
 product: every employee has a pension by law, every driver has mandatory
